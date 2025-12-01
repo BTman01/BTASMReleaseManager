@@ -1,7 +1,5 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
@@ -10,25 +8,19 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       build: {
-        outDir: 'src-tauri/frontend-dist',
+        outDir: 'dist',  // Changed from 'src-tauri/frontend-dist'
         emptyOutDir: true,
       },
       plugins: [react()],
       define: {
-        // FIX: Use API_KEY from environment variables and remove redundant definition, as per coding guidelines.
         'process.env.API_KEY': JSON.stringify(env.API_KEY),
         'process.env.CURSEFORGE_API_KEY': JSON.stringify('$2a$10$cYkgVmyCtsZr3Shz.hBrfO1f6kuXlNtqhPgNLE1vN8vqcpttpdLIi'),
       },
       resolve: {
         alias: {
-          // Fix: `__dirname` is not available in ES modules. Use `import.meta.url` to get the current directory path.
-          // Note: Removed the alias relying on 'url' module to prevent TS errors if @types/node is missing.
           '@': '/src',
         }
       },
-      // This is the key change to fix the dependency scan error.
-      // We're telling Vite not to pre-bundle these packages because
-      // they are provided by the importmap in index.html at runtime.
       optimizeDeps: {
         exclude: [
           '@google/genai',
