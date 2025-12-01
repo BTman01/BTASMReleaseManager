@@ -1,0 +1,5 @@
+{
+  "name": "Ark Ascended Server Manager",
+  "description": "A comprehensive dashboard to manage Ark: Ascended dedicated servers on your local computer. This tool allows for map selection, mod management with AI-powered analysis, server updates, and starting/stopping the server, all from a sleek, modern interface.",
+  "requestFramePermissions": []
+}
