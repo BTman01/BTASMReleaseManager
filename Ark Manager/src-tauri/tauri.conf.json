@@ -8,7 +8,7 @@
     "beforeDevCommand": "vite",
     "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:3000",
-    "frontendDist": "dist"
+    "frontendDist": "./frontend-dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -109,3 +109,4 @@
   }
 
 }
+
