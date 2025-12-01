@@ -1,0 +1,108 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ark Ascended Server Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes pulse-glow {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+      }
+      50% {
+        box-shadow: 0 0 10px 4px rgba(74, 222, 128, 0.7);
+      }
+    }
+    .animate-pulse-glow {
+      animation: pulse-glow 2.5s infinite;
+    }
+    /* Light theme styles */
+    .light body {
+      background-color: #f3f4f6; /* gray-100 */
+      color: #1f2937; /* gray-800 */
+    }
+    .light .bg-gray-900 { background-color: #f9fafb; /* gray-50 */ }
+    .light .bg-gray-800 { background-color: #ffffff; /* white */ }
+    .light .text-gray-100 { color: #111827; /* gray-900 */ }
+    .light .text-gray-200 { color: #374151; /* gray-700 */ }
+    .light .text-gray-300 { color: #4b5563; /* gray-600 */ }
+    .light .text-gray-400 { color: #6b7280; /* gray-500 */ }
+    .light .border-gray-700 { border-color: #d1d5db; /* gray-300 */ }
+    .light .bg-black.bg-opacity-30 { background-color: rgba(255,255,255,0.7); }
+    .light .bg-gray-800\/50 { background-color: rgba(255,255,255,0.5); }
+    .light .bg-gray-700\/50 { background-color: #e5e7eb; /* gray-200 */ }
+    .light .hover\:bg-gray-700:hover { background-color: #d1d5db; /* gray-300 */ }
+    .light .hover\:text-white:hover { color: #000; }
+    .light .bg-gray-900\/50 { background-color: #e5e7eb; /* gray-200 */ }
+    .light .text-cyan-400 { color: #0891b2; /* cyan-600 */}
+    .light .shadow-cyan-500\/10 { box-shadow: 0 4px 6px -1px rgba(14, 116, 144, 0.1), 0 2px 4px -1px rgba(14, 116, 144, 0.06); }
+    .light .bg-black\/50 { background-color: #f3f4f6; }
+    .light .bg-black\/20 { background-color: #f3f4f6; }
+    .light .hover\:bg-black\/70:hover { background-color: #d1d5db; }
+    .light .disabled\:bg-gray-700:disabled { background-color: #d1d5db; }
+
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(6, 182, 212, 0.5); /* cyan-500 with opacity */
+      border-radius: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(6, 182, 212, 0.8);
+    }
+
+    /* Light mode scrollbar overrides */
+    .light .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .light .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(8, 145, 178, 0.5); /* cyan-600 */
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0",
+    "react": "https://aistudiocdn.com/react@^18.2.0",
+    "react/": "https://aistudiocdn.com/react@^18.2.0/",
+    "react-dom": "https://aistudiocdn.com/react-dom@^18.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^18.2.0/",
+    "@tauri-apps/api/": "https://aistudiocdn.com/@tauri-apps/api@^2.0.0-beta.19/",
+    "@tauri-apps/api": "https://aistudiocdn.com/@tauri-apps/api@^2.0.0-beta.19",
+    "@tauri-apps/plugin-dialog": "https://aistudiocdn.com/@tauri-apps/plugin-dialog@^2.0.0-beta.8",
+    "@tauri-apps/plugin-fs": "https://aistudiocdn.com/@tauri-apps/plugin-fs@^2.0.0-beta.8",
+    "@tauri-apps/plugin-shell": "https://aistudiocdn.com/@tauri-apps/plugin-shell@^2.0.0-beta.8",
+    "@tauri-apps/plugin-autostart": "https://aistudiocdn.com/@tauri-apps/plugin-autostart@^2.0.0-beta.8",
+    "@tauri-apps/plugin-notification": "https://aistudiocdn.com/@tauri-apps/plugin-notification@^2.0.0-beta.8",
+    "@tauri-apps/plugin-updater": "https://aistudiocdn.com/@tauri-apps/plugin-updater@^2.0.0-beta.8",
+    "@tauri-apps/plugin-process": "https://aistudiocdn.com/@tauri-apps/plugin-process@^2.0.0-beta.8",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "vite": "https://aistudiocdn.com/vite@^7.1.12",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.0",
+    "url": "https://aistudiocdn.com/url@^0.11.4"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/assets/index-By5B3fTC.js"></script>
+</head>
+  <body class="bg-gray-900 text-gray-100 transition-colors duration-300 overflow-hidden">
+    <div id="root"></div>
+  </body>
+</html>
