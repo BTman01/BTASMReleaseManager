@@ -33,9 +33,9 @@ jobs:
       - name: Build and Sign
         uses: tauri-apps/tauri-action@v0.6.0
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         with:
           projectPath: ./Ark Manager
           tagName: ${{ github.ref_name }}
