@@ -39,7 +39,7 @@ jobs:
         with:
           projectPath: ./Ark Manager
           tagName: ${{ github.ref_name }}
-          releaseName: 'App v__VERSION__'
+          releaseName: 'BT Ark Server Manager ${{ github.ref_name }}'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: false
           prerelease: false
