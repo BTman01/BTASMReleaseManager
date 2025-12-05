@@ -2,7 +2,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "BT Ark Ascended Server Manager",
-  "version": "v0.1.11",
+  "version": "0.1.11",
   "identifier": "com.bt.ark.server.manager",
   "build": {
     "beforeDevCommand": "vite",
@@ -101,6 +101,7 @@
     "autostart": null,
     "notification": null,
     "updater": {
+      "active": true,
       "endpoints": [
         "https://github.com/BTman01/BTASMReleaseManager/releases/latest/download/latest.json"
       ],
@@ -109,6 +110,7 @@
   }
 
 }
+
 
 
 
