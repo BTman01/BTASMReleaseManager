@@ -4,7 +4,6 @@ on:
     tags:
       - '*'
   workflow_dispatch:
-
 jobs:
   release:
     permissions:
@@ -17,19 +16,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-
       - name: Install frontend dependencies
         working-directory: "Ark Manager"
         run: npm ci
-
       - name: Decode Tauri signing key and Build
         id: tauri_build
         shell: pwsh
@@ -49,14 +44,20 @@ jobs:
           $Env:TAURI_SIGNING_PRIVATE_KEY = $decodedKey
           Write-Host "Running Tauri build..."
           npx tauri build
-
           # Check for bundle folder existence and report status (do not dump secrets)
-          $bundleDir = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\"
-          $updaterDir = Join-Path $bundleDir "updater"
-          if (Test-Path $updaterDir) {
-            Write-Host "Updater folder exists: $updaterDir"
+          $bundleDir = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
+          Write-Host "Checking bundle directory: $bundleDir"
+          if (Test-Path $bundleDir) {
+            Write-Host "Bundle directory exists"
+            Get-ChildItem $bundleDir -Directory | ForEach-Object { Write-Host "  Found: $($_.Name)" }
           } else {
-            Write-Host "Updater folder not found at: $updaterDir"
+            Write-Host "Bundle directory not found at: $bundleDir"
           }
-
-
+          
+          $updaterDir = Join-Path $bundleDir "nsis"
+          if (Test-Path $updaterDir) {
+            Write-Host "NSIS updater folder exists: $updaterDir"
+            Get-ChildItem $updaterDir -File | ForEach-Object { Write-Host "  File: $($_.Name)" }
+          } else {
+            Write-Host "NSIS updater folder not found at: $updaterDir"
+          }
