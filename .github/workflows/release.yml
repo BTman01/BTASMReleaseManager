@@ -48,10 +48,10 @@ jobs:
           # Do NOT print or log the private key. Assign to environment variable for the process.
           $Env:TAURI_SIGNING_PRIVATE_KEY = $decodedKey
           Write-Host "Running Tauri build..."
-          npx tauri build -- --release
+          npx tauri build
 
           # Check for bundle folder existence and report status (do not dump secrets)
-          $bundleDir = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
+          $bundleDir = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\"
           $updaterDir = Join-Path $bundleDir "updater"
           if (Test-Path $updaterDir) {
             Write-Host "Updater folder exists: $updaterDir"
@@ -59,21 +59,4 @@ jobs:
             Write-Host "Updater folder not found at: $updaterDir"
           }
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload release artifacts
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./Ark Manager/src-tauri/target/release/bundle/nsis/BT Ark Ascended Server Manager_${{ github.ref_name }}_x64-setup.exe
-          asset_name: BT Ark Ascended Server Manager_${{ github.ref_name }}_x64-setup.exe
-          asset_content_type: application/octet-stream
