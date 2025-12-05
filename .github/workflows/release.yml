@@ -54,7 +54,7 @@ jobs:
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
 
-      - name: "Debug: check signing and updater files"
+      - name: Debug check signing and updater files
         shell: pwsh
         run: |
           $base = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
