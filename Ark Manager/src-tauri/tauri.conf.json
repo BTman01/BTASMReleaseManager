@@ -23,6 +23,15 @@
         "shadow": true
       }
     ],
+
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/BTman01/BTASMReleaseManager/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZFNTZEN0FDQjc0NTc0MjUKUldRbGRFVzNyTmRXYmxpclVTcUpsQ0xoK21ERURWRzI2OWliKzF6MHhUOUF6K0tMOTA0Qjg0RkMK"
+    },
+    
     "trayIcon": {
       "iconPath": "icons/128x128.png"
     },
@@ -99,17 +108,11 @@
   },
   "plugins": {
     "autostart": null,
-    "notification": null,
-    "updater": {
-      "active": true,
-      "endpoints": [
-        "https://github.com/BTman01/BTASMReleaseManager/releases/latest/download/latest.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZFNTZEN0FDQjc0NTc0MjUKUldRbGRFVzNyTmRXYmxpclVTcUpsQ0xoK21ERURWRzI2OWliKzF6MHhUOUF6K0tMOTA0Qjg0RkMK"
-    }
+    "notification": null
   }
 
 }
+
 
 
 
