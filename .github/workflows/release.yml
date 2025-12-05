@@ -45,3 +45,25 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
+      - name: Debug list bundle and updater files
+        shell: pwsh
+        run: |
+          $base = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
+          Write-Host "Listing bundle tree under: $base"
+          if (Test-Path $base) {
+            Get-ChildItem -Path $base -Recurse | ForEach-Object { Write-Host $_.FullName }
+          } else {
+            Write-Host "Bundle folder not found: $base"
+          }
+          $updaterDir = Join-Path $base "updater"
+          Write-Host "`nChecking updater folder: $updaterDir"
+          if (Test-Path $updaterDir) {
+            Get-ChildItem -Path $updaterDir -Recurse | ForEach-Object { Write-Host $_.FullName }
+            Write-Host "`n---- Showing first lines of any .sig files ----"
+            Get-ChildItem -Path $updaterDir -Filter *.sig -Recurse | ForEach-Object {
+              Write-Host "SIG FILE: $($_.FullName)"
+              Get-Content -Path $_.FullName -TotalCount 5
+            }
+          } else {
+            Write-Host "Updater folder not present"
+          }
