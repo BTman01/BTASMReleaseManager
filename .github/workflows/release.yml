@@ -16,48 +16,44 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+      
       - name: Install frontend dependencies
         working-directory: "Ark Manager"
         run: npm ci
-      - name: Decode Tauri signing key and Build
-        id: tauri_build
+      
+      - name: Decode Tauri signing key
         shell: pwsh
-        working-directory: "Ark Manager"
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          Write-Host "Decoding Tauri signing key (kept out of logs)..."
+          Write-Host "Decoding Tauri signing key..."
           if (-not $Env:TAURI_SIGNING_PRIVATE_KEY) {
             Write-Error "TAURI_SIGNING_PRIVATE_KEY secret is not set"
             exit 1
           }
           $decodedKey = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:TAURI_SIGNING_PRIVATE_KEY))
-          # Do NOT print or log the private key. Assign to environment variable for the process.
           $Env:TAURI_SIGNING_PRIVATE_KEY = $decodedKey
-          Write-Host "Running Tauri build..."
-          npx tauri build
-          # Check for bundle folder existence and report status (do not dump secrets)
-          $bundleDir = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
-          Write-Host "Checking bundle directory: $bundleDir"
-          if (Test-Path $bundleDir) {
-            Write-Host "Bundle directory exists"
-            Get-ChildItem $bundleDir -Directory | ForEach-Object { Write-Host "  Found: $($_.Name)" }
-          } else {
-            Write-Host "Bundle directory not found at: $bundleDir"
-          }
-          
-          $updaterDir = Join-Path $bundleDir "nsis"
-          if (Test-Path $updaterDir) {
-            Write-Host "NSIS updater folder exists: $updaterDir"
-            Get-ChildItem $updaterDir -File | ForEach-Object { Write-Host "  File: $($_.Name)" }
-          } else {
-            Write-Host "NSIS updater folder not found at: $updaterDir"
-          }
+          # Save to environment file for subsequent steps
+          "TAURI_SIGNING_PRIVATE_KEY=$decodedKey" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+      
+      - name: Build and Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          projectPath: "Ark Manager"
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Ark Manager v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: false
+          prerelease: false
