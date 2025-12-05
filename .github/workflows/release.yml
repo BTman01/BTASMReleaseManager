@@ -1,5 +1,4 @@
 name: Release
-
 on:
   push:
     tags:
@@ -37,77 +36,37 @@ jobs:
         working-directory: ./Ark Manager
         run: npm install
 
-      - name: Build and Sign (FULL DEBUG)
-        uses: tauri-apps/tauri-action@v0.6.0
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUST_LOG: debug
-        with:
-          projectPath: ./Ark Manager
-          tagName: ${{ github.ref_name }}
-          releaseName: "BT Ark Server Manager ${{ github.ref_name }}"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
-
-      - name: Debug Full signing details
+      - name: Decode Tauri signing key and Build
         shell: pwsh
         run: |
-          $base = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
-          Write-Host "=== Bundle directory: $base ==="
+          Write-Host "Decoding Tauri signing key..."
+          $decodedKey = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:TAURI_SIGNING_PRIVATE_KEY))
+          $Env:TAURI_SIGNING_PRIVATE_KEY = $decodedKey
+          
+          # Debug: show first 100 chars of key (safe for testing, do not share publicly)
+          Write-Host "Private key first 100 chars: $($decodedKey.Substring(0,[Math]::Min(100,$decodedKey.Length)))"
+          
+          Write-Host "Running Tauri build..."
+          npx tauri build -- --release
 
-          # List all bundle artifacts
-          Write-Host "`n--- All Bundle Files ---"
-          if (Test-Path $base) {
-            Get-ChildItem -Path $base -Recurse | ForEach-Object { Write-Host $_.FullName }
-          } else {
-            Write-Host "Bundle folder not found."
-          }
-
-          # Updater folder and files
-          $updaterDir = Join-Path $base "updater"
-          Write-Host "`n--- Updater folder ---"
+          # Debug: check for updater folder
+          $bundleDir = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
+          $updaterDir = Join-Path $bundleDir "updater"
           if (Test-Path $updaterDir) {
+            Write-Host "Updater folder exists!"
             Get-ChildItem -Path $updaterDir -Recurse | ForEach-Object { Write-Host $_.FullName }
-
-            # Show contents of latest.json
-            $latestJson = Join-Path $updaterDir "latest.json"
-            if (Test-Path $latestJson) {
-              Write-Host "`nlatest.json contents (first 50 lines):"
-              Get-Content -Path $latestJson -TotalCount 50
-            } else {
-              Write-Host "latest.json NOT found"
-            }
-
-            # Show signature file
-            $sigFile = Join-Path $updaterDir "latest.json.sig"
-            if (Test-Path $sigFile) {
-              Write-Host "`nlatest.json.sig contents (first 500 chars):"
-              Get-Content -Path $sigFile -Raw | ForEach-Object { $_.Substring(0, [math]::Min($_.Length, 500)) }
-            } else {
-              Write-Host "latest.json.sig NOT found"
-            }
           } else {
-            Write-Host "Updater folder not present"
+            Write-Host "Updater folder not found!"
           }
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # Check environment variables
-          Write-Host "`n--- Signing Environment ---"
-          if ($Env:TAURI_SIGNING_PRIVATE_KEY) { Write-Host "Private key loaded: Yes" } else { Write-Host "Private key loaded: No" }
-          Write-Host "Private key (first 200 chars):"
-          if ($Env:TAURI_SIGNING_PRIVATE_KEY) { Write-Host $Env:TAURI_SIGNING_PRIVATE_KEY.Substring(0, [math]::Min($Env:TAURI_SIGNING_PRIVATE_KEY.Length, 200)) }
-
-          if ($Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { Write-Host "Private key password loaded: Yes" } else { Write-Host "Private key password loaded: No" }
-          Write-Host "GITHUB_TOKEN loaded: Yes"
-
-          # Show version string from tauri.conf.json
-          $confPath = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\tauri.conf.json"
-          if (Test-Path $confPath) {
-            $conf = Get-Content -Path $confPath | ConvertFrom-Json
-            Write-Host "Version string in conf file: $($conf.version)"
-          } else {
-            Write-Host "tauri.conf.json not found"
-          }
+      - name: Upload release artifacts
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.build.outputs.releaseUploadUrl }}
+          asset_path: ./Ark Manager/src-tauri/target/release/bundle/nsis/BT Ark Ascended Server Manager_${{ github.ref_name }}_x64-setup.exe
+          asset_name: BT Ark Ascended Server Manager_${{ github.ref_name }}_x64-setup.exe
+          asset_content_type: application/octet-stream
