@@ -37,7 +37,7 @@ jobs:
         working-directory: ./Ark Manager
         run: npm install
 
-      - name: Build and Sign
+      - name: Build and Sign (FULL DEBUG)
         uses: tauri-apps/tauri-action@v0.6.0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -54,21 +54,21 @@ jobs:
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
 
-      - name: Debug check signing and updater files
+      - name: Debug Full signing details
         shell: pwsh
         run: |
           $base = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\target\release\bundle"
           Write-Host "=== Bundle directory: $base ==="
 
-          # List all built artifacts
-          Write-Host "`n--- Artifacts ---"
+          # List all bundle artifacts
+          Write-Host "`n--- All Bundle Files ---"
           if (Test-Path $base) {
             Get-ChildItem -Path $base -Recurse | ForEach-Object { Write-Host $_.FullName }
           } else {
             Write-Host "Bundle folder not found."
           }
 
-          # Updater folder
+          # Updater folder and files
           $updaterDir = Join-Path $base "updater"
           Write-Host "`n--- Updater folder ---"
           if (Test-Path $updaterDir) {
@@ -77,8 +77,8 @@ jobs:
             # Show contents of latest.json
             $latestJson = Join-Path $updaterDir "latest.json"
             if (Test-Path $latestJson) {
-              Write-Host "`nlatest.json contents:"
-              Get-Content -Path $latestJson -TotalCount 20
+              Write-Host "`nlatest.json contents (first 50 lines):"
+              Get-Content -Path $latestJson -TotalCount 50
             } else {
               Write-Host "latest.json NOT found"
             }
@@ -86,8 +86,8 @@ jobs:
             # Show signature file
             $sigFile = Join-Path $updaterDir "latest.json.sig"
             if (Test-Path $sigFile) {
-              Write-Host "`nlatest.json.sig contents (first 200 chars):"
-              Get-Content -Path $sigFile -Raw | ForEach-Object { $_.Substring(0, [math]::Min($_.Length, 200)) }
+              Write-Host "`nlatest.json.sig contents (first 500 chars):"
+              Get-Content -Path $sigFile -Raw | ForEach-Object { $_.Substring(0, [math]::Min($_.Length, 500)) }
             } else {
               Write-Host "latest.json.sig NOT found"
             }
@@ -95,9 +95,20 @@ jobs:
             Write-Host "Updater folder not present"
           }
 
-          # Show environment variables (mask private key)
+          # Check environment variables
           Write-Host "`n--- Signing Environment ---"
           if ($Env:TAURI_SIGNING_PRIVATE_KEY) { Write-Host "Private key loaded: Yes" } else { Write-Host "Private key loaded: No" }
+          Write-Host "Private key (first 200 chars):"
+          if ($Env:TAURI_SIGNING_PRIVATE_KEY) { Write-Host $Env:TAURI_SIGNING_PRIVATE_KEY.Substring(0, [math]::Min($Env:TAURI_SIGNING_PRIVATE_KEY.Length, 200)) }
+
           if ($Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { Write-Host "Private key password loaded: Yes" } else { Write-Host "Private key password loaded: No" }
           Write-Host "GITHUB_TOKEN loaded: Yes"
-          Write-Host "Version string in conf file: $(Get-Content -Path 'Ark Manager\src-tauri\tauri.conf.json' | ConvertFrom-Json | Select-Object -ExpandProperty version)"
+
+          # Show version string from tauri.conf.json
+          $confPath = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\src-tauri\tauri.conf.json"
+          if (Test-Path $confPath) {
+            $conf = Get-Content -Path $confPath | ConvertFrom-Json
+            Write-Host "Version string in conf file: $($conf.version)"
+          } else {
+            Write-Host "tauri.conf.json not found"
+          }
