@@ -30,32 +30,18 @@ jobs:
         working-directory: "Ark Manager"
         run: npm ci
 
-      - name: Decode Tauri signing key and Build
-        id: tauri_build
+      - name: Build and Sign
         shell: pwsh
-        working-directory: "Ark Manager"
+        run: |
+          # Decode the base64 private key into an environment variable
+          $decodedKey = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:TAURI_SIGNING_PRIVATE_KEY))
+          
+          # Set it as TAURI_SIGNING_PRIVATE_KEY environment variable for the Tauri build
+          $Env:TAURI_SIGNING_PRIVATE_KEY = $decodedKey
+          
+          # Run Tauri build
+          npx tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          Write-Host "Decoding Tauri signing key (kept out of logs)..."
-          if (-not $Env:TAURI_SIGNING_PRIVATE_KEY) {
-            Write-Error "TAURI_SIGNING_PRIVATE_KEY secret is not set"
-            exit 1
-          }
-          $decodedKey = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:TAURI_SIGNING_PRIVATE_KEY))
-          # Do NOT print or log the private key. Assign to environment variable for the process.
-          $Env:TAURI_SIGNING_PRIVATE_KEY = $decodedKey
-          Write-Host "Running Tauri build..."
-          npx tauri build
-
-          # Check for bundle folder existence and report status (do not dump secrets)
-          $bundleDir = Join-Path $Env:GITHUB_WORKSPACE "Ark Manager\"
-          $updaterDir = Join-Path $bundleDir "updater"
-          if (Test-Path $updaterDir) {
-            Write-Host "Updater folder exists: $updaterDir"
-          } else {
-            Write-Host "Updater folder not found at: $updaterDir"
-          }
-
