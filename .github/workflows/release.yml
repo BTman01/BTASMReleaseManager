@@ -31,7 +31,7 @@ jobs:
         run: npm install
 
       # ===============================================================
-      # 🔥 DEBUG BLOCK — SEE EXACTLY WHAT THE RUNNER RECEIVES
+      # 🔥 DEBUG: Signing Environment + Paths
       # ===============================================================
       - name: Debug Signing Environment (Base64 + Decoded + Paths)
         shell: bash
@@ -64,7 +64,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       # ===============================================================
-      # 🔥 ENABLE MAX VERBOSITY FROM RUST + TAURI SIGNER
+      # 🔥 Enable Maximum Verbosity in Rust + Tauri
       # ===============================================================
       - name: Enable Rust/Tauri Debug Logging
         shell: bash
@@ -72,8 +72,10 @@ jobs:
           echo "RUST_LOG=debug" >> $GITHUB_ENV
           echo "TAURI_SIGNING_DEBUG=true" >> $GITHUB_ENV
           echo "TAURI_PRIVATE_KEY_CONTENT_DEBUG=true" >> $GITHUB_ENV
+          echo "VERBOSE=1" >> $GITHUB_ENV
+
       # ===============================================================
-      # 🔥 ECHO TAURI SIGN COMMAND (TO ENSURE ACTIONS RECEIVES KEY)
+      # 🔥 Echo Tauri Signer Info
       # ===============================================================
       - name: Echo Tauri Signer Call
         shell: bash
@@ -84,12 +86,10 @@ jobs:
           echo "=============================================="
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          
-      - name: Enable max Tauri CLI logging
-        shell: bash
-        run: |
-          echo "VERBOSE=1" >> $GITHUB_ENV
-          
+
+      # ===============================================================
+      # 🔥 DEBUG: List Bundles Before Build
+      # ===============================================================
       - name: Debug bundle contents before upload
         shell: bash
         run: |
@@ -97,18 +97,42 @@ jobs:
           echo "🔍 BUNDLE DIRECTORY CONTENTS"
           echo "=============================================="
           echo "MSI bundle directory:"
-          ls -l "Ark Manager/src-tauri/target/release/bundle/msi"
+          ls -l "Ark Manager/src-tauri/target/release/bundle/msi" || echo "MSI bundle missing"
           echo ""
           echo "NSIS bundle directory:"
-          ls -l "Ark Manager/src-tauri/target/release/bundle/nsis"
+          ls -l "Ark Manager/src-tauri/target/release/bundle/nsis" || echo "NSIS bundle missing"
           echo ""
           echo "ROOT bundle directory:"
-          ls -l "Ark Manager/src-tauri/target/release/bundle"
+          ls -l "Ark Manager/src-tauri/target/release/bundle" || echo "Bundle root missing"
+
+      # ===============================================================
+      # 🔥 DEBUG: Preview .sig Files
+      # ===============================================================
+      - name: Check generated signatures
+        shell: bash
+        run: |
+          echo "=============================================="
+          echo "🔍 SIGNATURE FILES PREVIEW"
+          echo "=============================================="
+          head -c 100 "Ark Manager/src-tauri/target/release/bundle/msi/BT Ark Ascended Server Manager_${{ github.ref_name }}_x64_en-US.msi.sig" || echo "MSI SIG missing"
+          head -c 100 "Ark Manager/src-tauri/target/release/bundle/nsis/BT Ark Ascended Server Manager_${{ github.ref_name }}_x64-setup.exe.sig" || echo "NSIS SIG missing"
+
+      # ===============================================================
+      # 🔥 DEBUG: Find what Tauri sees for artifacts
+      # ===============================================================
+      - name: Debug what Tauri sees
+        shell: bash
+        run: |
+          echo "=============================================="
+          echo "🔍 ARTIFACTS DISCOVERY"
+          echo "Listing all MSI, NSIS, and ZIP bundles recursively:"
+          find "Ark Manager/src-tauri/target/release/bundle" -type f
+
       # ===============================================================
       # 🔥 BUILD + SIGN + PUBLISH
       # ===============================================================
       - name: Build and Sign
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
