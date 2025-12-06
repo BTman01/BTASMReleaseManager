@@ -42,7 +42,6 @@ jobs:
           echo "TAURI_SIGNING_PRIVATE_KEY (first 120 chars):"
           echo "${TAURI_SIGNING_PRIVATE_KEY:0:120}"
           echo ""
-
           echo "=============================================="
           echo "🔍 DECODING PRIVATE KEY"
           echo "=============================================="
@@ -50,21 +49,17 @@ jobs:
           echo "Decoded key (first 200 chars):"
           head -c 200 decoded_key.pem || echo "Decoded key missing"
           echo ""
-
           echo "=============================================="
           echo "📁 DIRECTORY LISTINGS"
           echo "=============================================="
           echo "Root directory:"
           ls -R .
           echo ""
-
           echo "src-tauri directory:"
           ls -R "Ark Manager/src-tauri" || echo "src-tauri NOT FOUND"
           echo ""
-
           echo "⚠️ NOTE: Key is printed for debugging only. You will regenerate after fixing."
           echo "=============================================="
-
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
@@ -77,7 +72,6 @@ jobs:
           echo "RUST_LOG=debug" >> $GITHUB_ENV
           echo "TAURI_SIGNING_DEBUG=true" >> $GITHUB_ENV
           echo "TAURI_PRIVATE_KEY_CONTENT_DEBUG=true" >> $GITHUB_ENV
-
       # ===============================================================
       # 🔥 ECHO TAURI SIGN COMMAND (TO ENSURE ACTIONS RECEIVES KEY)
       # ===============================================================
@@ -88,7 +82,6 @@ jobs:
           echo "Calling Tauri action with signing enabled"
           echo "Private key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
           echo "=============================================="
-
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
