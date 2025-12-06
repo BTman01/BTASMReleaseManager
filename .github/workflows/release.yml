@@ -10,10 +10,10 @@ jobs:
     permissions:
       contents: write
     strategy:
-      fail-fast: false
       matrix:
         platform: [windows-latest]
     runs-on: ${{ matrix.platform }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,31 +26,32 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
-
       - name: Install frontend dependencies
         working-directory: ./Ark Manager
         run: npm install
 
-      - name: Decode Tauri signing key and Build
+      # Debug only, NO writing keys to disk!
+      - name: Debug Signing Key
         shell: pwsh
         run: |
-          Write-Host "Decoding Tauri signing key..."
-          $decodedKey = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Env:TAURI_SIGNING_PRIVATE_KEY))
-          $Env:TAURI_SIGNING_PRIVATE_KEY = $decodedKey
-          
-          # Debug: show first 100 chars of key (safe for testing, do not share publicly)
-          Write-Host "Private key first 100 chars: $($decodedKey.Substring(0,[Math]::Min(100,$decodedKey.Length)))"
-          
-          Write-Host "Running Tauri build..."
-          npx tauri build
+          Write-Host "Loaded private key:" 
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+            Write-Host "YES (first 100 chars):"
+            $d = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY))
+            Write-Host $d.Substring(0,100)
+          } else {
+            Write-Host "NO"
+          }
+
+      - name: Build and Sign
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
+        with:
+          projectPath: ./Ark Manager
+          tagName: ${{ github.ref_name }}
+          releaseName: 'BT Ark Server Manager ${{ github.ref_name }}'
+          releaseBody: 'See the assets to download this version and install.'
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
