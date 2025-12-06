@@ -81,11 +81,9 @@ jobs:
           echo "=============================================="
           echo "Calling Tauri action with signing enabled"
           echo "Private key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
-          echo "Private key password length: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
           echo "=============================================="
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       # ===============================================================
       # 🔥 BUILD + SIGN + PUBLISH
       # ===============================================================
@@ -93,7 +91,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUST_LOG: debug
           TAURI_SIGNING_DEBUG: "true"
