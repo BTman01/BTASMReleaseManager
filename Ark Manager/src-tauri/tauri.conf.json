@@ -2,7 +2,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/v2/schema.json",
   "productName": "BT Ark Ascended Server Manager",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "identifier": "com.bt.ark.server.manager",
   "build": {
     "beforeDevCommand": "vite",
@@ -106,11 +106,12 @@
       "endpoints": [
         "https://github.com/BTman01/BTASMReleaseManager/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMyM0RFNTg3OUExNTIyMwpSV1FqVXFGNVdONGpBMzFEdW9BeEt1OGYxWmtiSlZaT0xBUDNhbk4wVXlqNnRtL2tUZlNVMlZMaQo="
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERFMTJEMUMyOUUzM0JFQQpSV1RxTytNcEhDM2hEUUpLWWZRWVJmYUQ5eDhlSGRROURyYU9PNTNodkhlYi9hQzBjazcyQVltSwo="
     }
   }
 
 }
+
 
 
 
