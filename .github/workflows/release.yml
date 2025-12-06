@@ -30,24 +30,78 @@ jobs:
         working-directory: ./Ark Manager
         run: npm install
 
-      # Debug only, NO writing keys to disk!
-      - name: Debug Signing Key
-        shell: pwsh
+      # ===============================================================
+      # 🔥 DEBUG BLOCK — SEE EXACTLY WHAT THE RUNNER RECEIVES
+      # ===============================================================
+      - name: Debug Signing Environment (Base64 + Decoded + Paths)
+        shell: bash
         run: |
-          Write-Host "Loaded private key:" 
-          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
-            Write-Host "YES (first 100 chars):"
-            $d = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY))
-            Write-Host $d.Substring(0,100)
-          } else {
-            Write-Host "NO"
-          }
+          echo "=============================================="
+          echo "🔍 DEBUG: ENV VARIABLES"
+          echo "=============================================="
+          echo "TAURI_SIGNING_PRIVATE_KEY (first 120 chars):"
+          echo "${TAURI_SIGNING_PRIVATE_KEY:0:120}"
+          echo ""
 
+          echo "=============================================="
+          echo "🔍 DECODING PRIVATE KEY"
+          echo "=============================================="
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > decoded_key.pem 2>/dev/null || echo "FAILED TO DECODE KEY"
+          echo "Decoded key (first 200 chars):"
+          head -c 200 decoded_key.pem || echo "Decoded key missing"
+          echo ""
+
+          echo "=============================================="
+          echo "📁 DIRECTORY LISTINGS"
+          echo "=============================================="
+          echo "Root directory:"
+          ls -R .
+          echo ""
+
+          echo "src-tauri directory:"
+          ls -R "Ark Manager/src-tauri" || echo "src-tauri NOT FOUND"
+          echo ""
+
+          echo "⚠️ NOTE: Key is printed for debugging only. You will regenerate after fixing."
+          echo "=============================================="
+
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
+      # ===============================================================
+      # 🔥 ENABLE MAX VERBOSITY FROM RUST + TAURI SIGNER
+      # ===============================================================
+      - name: Enable Rust/Tauri Debug Logging
+        shell: bash
+        run: |
+          echo "RUST_LOG=debug" >> $GITHUB_ENV
+          echo "TAURI_SIGNING_DEBUG=true" >> $GITHUB_ENV
+          echo "TAURI_PRIVATE_KEY_CONTENT_DEBUG=true" >> $GITHUB_ENV
+
+      # ===============================================================
+      # 🔥 ECHO TAURI SIGN COMMAND (TO ENSURE ACTIONS RECEIVES KEY)
+      # ===============================================================
+      - name: Echo Tauri Signer Call
+        shell: bash
+        run: |
+          echo "=============================================="
+          echo "Calling Tauri action with signing enabled"
+          echo "Private key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+          echo "=============================================="
+
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
+      # ===============================================================
+      # 🔥 BUILD + SIGN + PUBLISH
+      # ===============================================================
       - name: Build and Sign
         uses: tauri-apps/tauri-action@v0.6.0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: debug
+          TAURI_SIGNING_DEBUG: "true"
         with:
           projectPath: ./Ark Manager
           tagName: ${{ github.ref_name }}
