@@ -84,6 +84,26 @@ jobs:
           echo "=============================================="
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          
+      - name: Enable max Tauri CLI logging
+        shell: bash
+        run: |
+          echo "VERBOSE=1" >> $GITHUB_ENV
+          
+      - name: Debug bundle contents before upload
+        shell: bash
+        run: |
+          echo "=============================================="
+          echo "🔍 BUNDLE DIRECTORY CONTENTS"
+          echo "=============================================="
+          echo "MSI bundle directory:"
+          ls -l "Ark Manager/src-tauri/target/release/bundle/msi"
+          echo ""
+          echo "NSIS bundle directory:"
+          ls -l "Ark Manager/src-tauri/target/release/bundle/nsis"
+          echo ""
+          echo "ROOT bundle directory:"
+          ls -l "Ark Manager/src-tauri/target/release/bundle"
       # ===============================================================
       # 🔥 BUILD + SIGN + PUBLISH
       # ===============================================================
