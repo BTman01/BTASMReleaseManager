@@ -129,6 +129,20 @@ jobs:
           echo "Listing all MSI, NSIS, and ZIP bundles recursively:"
           find "Ark Manager/src-tauri/target/release/bundle" -type f
 
+      - name: Get Release Description
+        id: release_info
+        shell: bash
+        run: |
+          # Fetch the release body from GitHub API
+          RELEASE_BODY=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" \
+            | jq -r '.body // "See the assets to download this version and install."')
+          
+          # Set as output (handle multiline)
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       # ===============================================================
       # 🔥 BUILD + SIGN + PUBLISH
       # ===============================================================
@@ -144,6 +158,6 @@ jobs:
           projectPath: ./Ark Manager
           tagName: ${{ github.ref_name }}
           releaseName: 'BT Ark Server Manager ${{ github.ref_name }}'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: ${{ steps.release_info.outputs.RELEASE_NOTES }}
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
