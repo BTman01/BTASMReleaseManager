@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppSettings } from '../types';
 import { CogIcon, FolderIcon, DownloadCloudIcon } from './icons';
@@ -162,12 +161,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '0.1.35'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '0.1.36'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v0.1.35 (Latest)</p>
+                        <p className="font-semibold text-gray-200">v0.1.36 (Latest)</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400">
+                            <li><strong>New Update Experience:</strong> Replaced the system popup with a sleek, custom-themed window that shows detailed release notes before installing.</li>
+                            <li><strong>Non-Intrusive Notifications:</strong> Updates now appear as a subtle indicator in the header rather than interrupting your workflow immediately.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p className="font-semibold text-gray-200">v0.1.35</p>
                         <ul className="list-disc list-inside pl-2 text-gray-400">
                             <li><strong>Updater Configuration:</strong> Restored the confirmed working Public Key format for the updater service.</li>
                         </ul>
