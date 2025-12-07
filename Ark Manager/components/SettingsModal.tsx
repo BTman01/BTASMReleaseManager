@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { AppSettings } from '../types';
 import { CogIcon, FolderIcon, DownloadCloudIcon } from './icons';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
 import { getVersion } from '@tauri-apps/api/app';
-import { checkForAppUpdates } from '../services/updaterService';
+import { checkUpdateAvailable } from '../services/updaterService';
 
 
 interface SettingsModalProps {
@@ -12,9 +12,10 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: AppSettings;
   onSettingChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+  onUpdateFound: (update: any) => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingChange }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingChange, onUpdateFound }) => {
   const [version, setVersion] = useState('');
   const [showPreviousReleases, setShowPreviousReleases] = useState(false);
   const [isCheckingForUpdate, setIsCheckingForUpdate] = useState(false);
@@ -35,8 +36,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
   const handleCheckForUpdates = async () => {
       setIsCheckingForUpdate(true);
-      await checkForAppUpdates(false); // false = not silent, show result dialog
-      setIsCheckingForUpdate(false);
+      try {
+          const update = await checkUpdateAvailable();
+          if (update) {
+              onClose(); // Close settings to show the update modal cleanly
+              onUpdateFound(update);
+          } else {
+              await message('You are on the latest version.', { title: 'No Updates' });
+          }
+      } catch (error: any) {
+          let errorMsg = String(error);
+          if (errorMsg.includes("signature") && errorMsg.includes("could not be decoded")) {
+               errorMsg += "\n\nTROUBLESHOOTING: The signature in latest.json appears to be invalid. This often happens if the 'TAURI_SIGNING_PRIVATE_KEY' in GitHub Secrets contains your Public Key instead of your Private Key.";
+          }
+          await message(`Failed to check for updates: ${errorMsg}`, { title: 'Update Check Failed', kind: 'error' });
+      } finally {
+          setIsCheckingForUpdate(false);
+      }
   };
 
 
@@ -146,14 +162,44 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '0.1.11'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '0.1.35'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v0.1.11 (Latest)</p>
+                        <p className="font-semibold text-gray-200">v0.1.35 (Latest)</p>
                         <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Deployment Stability:</strong> Resolved build path issues in the release pipeline to ensure updates can be built and signed reliably in the cloud.</li>
+                            <li><strong>Updater Configuration:</strong> Restored the confirmed working Public Key format for the updater service.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p className="font-semibold text-gray-200">v0.1.34</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400">
+                            <li><strong>Custom Branding:</strong> Updated application icons to the new BTASM logo design.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p className="font-semibold text-gray-200">v0.1.33</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400">
+                            <li><strong>Update System Repair:</strong> Synchronized cryptographic keys to fix "signature verification failed" errors during updates.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p className="font-semibold text-gray-200">v0.1.32</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400">
+                            <li><strong>Security Maintenance:</strong> Updated cryptographic signing keys to ensure secure and verified updates via GitHub Releases.</li>
+                        </ul>
+                    </div>
+                     <div>
+                        <p className="font-semibold text-gray-200">v0.1.31</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400">
+                            <li><strong>Security Maintenance:</strong> Internal updates to key synchronization to resolve update verification issues.</li>
+                        </ul>
+                    </div>
+                     <div>
+                        <p className="font-semibold text-gray-200">v0.1.30</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400">
+                            <li><strong>GitHub Releases Integration:</strong> Successfully migrated the update infrastructure to GitHub Releases. The app now downloads signed updates directly from the official repository.</li>
                         </ul>
                     </div>
                 </div>
@@ -177,6 +223,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.11</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Deployment Stability:</strong> Resolved build path issues in the release pipeline to ensure updates can be built and signed reliably in the cloud.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v0.1.10</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400">
