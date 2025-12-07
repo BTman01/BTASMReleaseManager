@@ -161,12 +161,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '0.1.37'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '0.1.38'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v0.1.37 (Latest)</p>
+                        <p className="font-semibold text-gray-200">v0.1.38 (Latest)</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400">
+                            <li><strong>Bug Fixes:</strong> Resolved TypeScript errors in the build pipeline affecting component property validation.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p className="font-semibold text-gray-200">v0.1.37</p>
                         <ul className="list-disc list-inside pl-2 text-gray-400">
                             <li><strong>Optimization:</strong> Synchronization fixes for the update delivery system.</li>
                         </ul>
