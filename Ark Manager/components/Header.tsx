@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { CogIcon, BellIcon, WindowMinimizeIcon, WindowMaximizeIcon, WindowRestoreIcon, WindowCloseIcon } from './icons';
+import { CogIcon, BellIcon, WindowMinimizeIcon, WindowMaximizeIcon, WindowRestoreIcon, WindowCloseIcon, DownloadCloudIcon } from './icons';
 
 interface HeaderProps {
   onOpenSettings: () => void;
   hasUnread: boolean;
   onToggleNotifications: () => void;
+  pendingAppUpdate: any | null;
+  onInstallAppUpdate: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNotifications }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNotifications, pendingAppUpdate, onInstallAppUpdate }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -100,6 +102,20 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNoti
           </div>
 
           <div className="flex items-center space-x-2 mr-2">
+                {pendingAppUpdate && (
+                    <button
+                        onClick={onInstallAppUpdate}
+                        className="relative p-2 text-cyan-400 hover:text-white hover:bg-cyan-600/30 rounded-full transition-colors flex items-center space-x-2 group"
+                        title={`Update Available: v${pendingAppUpdate.version}`}
+                    >
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+                        </span>
+                        <DownloadCloudIcon className="w-6 h-6" />
+                        <span className="text-xs font-bold hidden group-hover:block transition-all">Update v{pendingAppUpdate.version}</span>
+                    </button>
+                )}
                 <button
                     onClick={onToggleNotifications}
                     className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-full transition-colors"
