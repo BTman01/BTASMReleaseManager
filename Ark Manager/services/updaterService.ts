@@ -1,4 +1,3 @@
-
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { confirm, message } from '@tauri-apps/plugin-dialog';
