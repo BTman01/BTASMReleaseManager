@@ -5,10 +5,11 @@ import Header from './components/Header';
 import SettingsModal from './components/SettingsModal';
 import NotificationDropdown from './components/NotificationDropdown';
 import CloseConfirmationModal from './components/CloseConfirmationModal';
+import UpdateModal from './components/UpdateModal';
 import Toast, { ToastMessage } from './components/Toast';
 import { AppSettings, AppNotification } from './types';
 import * as appSettingsService from './services/appSettingsService';
-import { checkForAppUpdates } from './services/updaterService';
+import { checkUpdateAvailable, installUpdate } from './services/updaterService';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
@@ -22,6 +23,10 @@ const App: React.FC = () => {
   const [hasUnread, setHasUnread] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [profileToSelect, setProfileToSelect] = useState<string | null>(null);
+
+  // App Update State
+  const [pendingAppUpdate, setPendingAppUpdate] = useState<any | null>(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // Close Confirmation State
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
@@ -60,7 +65,14 @@ const App: React.FC = () => {
     syncAutostart();
 
     // Check for app updates silently on startup
-    checkForAppUpdates(true);
+    const silentUpdateCheck = async () => {
+        const update = await checkUpdateAvailable();
+        if (update) {
+            console.log("App update available:", update.version);
+            setPendingAppUpdate(update);
+        }
+    };
+    silentUpdateCheck();
   }, []);
 
   // Effect to intercept window close requests
@@ -147,8 +159,6 @@ const App: React.FC = () => {
 
   const handleConfirmMinimize = async () => {
     const appWindow = getCurrentWindow();
-    // Use hide() instead of minimize() to remove it from taskbar.
-    // The Rust backend handles restoring it via the Tray Icon.
     await appWindow.hide();
     setIsCloseModalOpen(false);
   };
@@ -156,6 +166,30 @@ const App: React.FC = () => {
   const handleShowToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type });
   }, []);
+
+  const handleOpenUpdateModal = () => {
+      if (pendingAppUpdate) {
+          setIsUpdateModalOpen(true);
+      }
+  };
+
+  const handleConfirmInstall = async () => {
+      if (pendingAppUpdate) {
+          try {
+              await installUpdate(pendingAppUpdate);
+          } catch (error) {
+              console.error(error);
+              handleShowToast(`Update failed: ${error}`, 'error');
+              setIsUpdateModalOpen(false);
+          }
+      }
+  };
+
+  // Called from SettingsModal if manual check finds an update
+  const handleUpdateFound = (update: any) => {
+      setPendingAppUpdate(update);
+      setIsUpdateModalOpen(true);
+  };
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gray-950 text-gray-100 font-sans selection:bg-cyan-500 selection:text-white relative">
@@ -170,13 +204,10 @@ const App: React.FC = () => {
 
       {/* Immersive Background Layer */}
       <div className="fixed inset-0 w-full h-full z-0 pointer-events-none overflow-hidden">
-        {/* Base Image: Misty Mountains/Forest for that 'The Island' feel */}
         <div 
           className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 opacity-20" 
           style={{backgroundImage: "url('https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=2574&auto=format&fit=crop')"}}
         ></div>
-        
-        {/* Tek-inspired Grid Overlay */}
         <div 
           className="absolute inset-0 opacity-5"
           style={{
@@ -185,8 +216,6 @@ const App: React.FC = () => {
             backgroundSize: '50px 50px'
           }}
         ></div>
-
-        {/* Gradient Overlay for Readability */}
         <div className="absolute inset-0 bg-gradient-to-b from-gray-950/80 via-gray-950/50 to-gray-950/80"></div>
         <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at center, transparent 0%, #030712 100%)', opacity: 0.6 }}></div>
       </div>
@@ -196,6 +225,8 @@ const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsOpen(true)} 
           hasUnread={hasUnread}
           onToggleNotifications={handleToggleNotifications}
+          pendingAppUpdate={pendingAppUpdate}
+          onInstallAppUpdate={handleOpenUpdateModal}
         />
         <NotificationDropdown 
           isOpen={isNotificationsOpen}
@@ -219,12 +250,19 @@ const App: React.FC = () => {
           onClose={() => setIsSettingsOpen(false)}
           settings={appSettings}
           onSettingChange={handleSettingChange}
+          onUpdateFound={handleUpdateFound}
         />
         <CloseConfirmationModal
           isOpen={isCloseModalOpen}
           onExit={handleConfirmExit}
           onMinimize={handleConfirmMinimize}
           onCancel={() => setIsCloseModalOpen(false)}
+        />
+        <UpdateModal
+            isOpen={isUpdateModalOpen}
+            onClose={() => setIsUpdateModalOpen(false)}
+            onInstall={handleConfirmInstall}
+            updateData={pendingAppUpdate}
         />
       </div>
     </div>
