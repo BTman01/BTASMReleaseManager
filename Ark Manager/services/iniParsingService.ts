@@ -50,9 +50,6 @@ const mapIniToConfig = (gus: Record<string, Record<string, string>>, game: Recor
     if(gusServerSettings['XPMultiplier']) config.xpMultiplier = parseFloat(gusServerSettings['XPMultiplier']);
     if(gusServerSettings['TamingSpeedMultiplier']) config.tamingSpeedMultiplier = parseFloat(gusServerSettings['TamingSpeedMultiplier']);
     if(gusServerSettings['HarvestAmountMultiplier']) config.harvestAmountMultiplier = parseFloat(gusServerSettings['HarvestAmountMultiplier']);
-    if(gusServerSettings['MatingIntervalMultiplier']) config.matingIntervalMultiplier = parseFloat(gusServerSettings['MatingIntervalMultiplier']);
-    if(gusServerSettings['EggHatchSpeedMultiplier']) config.eggHatchSpeedMultiplier = parseFloat(gusServerSettings['EggHatchSpeedMultiplier']);
-    if(gusServerSettings['BabyMatureSpeedMultiplier']) config.babyMatureSpeedMultiplier = parseFloat(gusServerSettings['BabyMatureSpeedMultiplier']);
     if(gusServerSettings['MapName']) config.map = gusServerSettings['MapName'];
     
     // New GUS ServerSettings
@@ -63,8 +60,6 @@ const mapIniToConfig = (gus: Record<string, Record<string, string>>, game: Recor
     if(gusServerSettings['DinoCharacterFoodDrainMultiplier']) config.dinoCharacterFoodDrainMultiplier = parseFloat(gusServerSettings['DinoCharacterFoodDrainMultiplier']);
     if(gusServerSettings['DinoCharacterStaminaDrainMultiplier']) config.dinoCharacterStaminaDrainMultiplier = parseFloat(gusServerSettings['DinoCharacterStaminaDrainMultiplier']);
     if(gusServerSettings['DinoCharacterHealthRecoveryMultiplier']) config.dinoCharacterHealthRecoveryMultiplier = parseFloat(gusServerSettings['DinoCharacterHealthRecoveryMultiplier']);
-    if(gusServerSettings['HarvestHealthMultiplier']) config.harvestHealthMultiplier = parseFloat(gusServerSettings['HarvestHealthMultiplier']);
-    if(gusServerSettings['ItemSpoilingTimeMultiplier']) config.itemSpoilingTimeMultiplier = parseFloat(gusServerSettings['ItemSpoilingTimeMultiplier']);
     if(gusServerSettings['ServerCrosshair']) config.bServerCrosshair = gusServerSettings['ServerCrosshair'].toLowerCase() === 'true';
     if(gusServerSettings['ShowMapPlayerLocation']) config.bShowMapPlayerLocation = gusServerSettings['ShowMapPlayerLocation'].toLowerCase() === 'true';
     if(gusServerSettings['AllowAnyoneBabyImprintCuddle']) config.bAllowAnyoneBabyImprintCuddle = gusServerSettings['AllowAnyoneBabyImprintCuddle'].toLowerCase() === 'true';
@@ -72,10 +67,7 @@ const mapIniToConfig = (gus: Record<string, Record<string, string>>, game: Recor
     if(gusServerSettings['DisableImprintDinoBuff']) config.bDisableImprintDinoBuff = gusServerSettings['DisableImprintDinoBuff'].toLowerCase() === 'true';
     if(gusServerSettings['TamedDinoDamageMultiplier']) config.tamedDinoDamageMultiplier = parseFloat(gusServerSettings['TamedDinoDamageMultiplier']);
     if(gusServerSettings['TamedDinoResistanceMultiplier']) config.tamedDinoResistanceMultiplier = parseFloat(gusServerSettings['TamedDinoResistanceMultiplier']);
-    if(gusServerSettings['AllowCaveBuildingPvE']) config.bAllowCaveBuildingPvE = gusServerSettings['AllowCaveBuildingPvE'].toLowerCase() === 'true';
-    if(gusServerSettings['AlwaysAllowStructurePickup']) config.bAlwaysAllowStructurePickup = gusServerSettings['AlwaysAllowStructurePickup'].toLowerCase() === 'true';
     if(gusServerSettings['AutoSavePeriodMinutes']) config.autoSavePeriodMinutes = parseFloat(gusServerSettings['AutoSavePeriodMinutes']);
-    if(gusServerSettings['FuelConsumptionIntervalMultiplier']) config.fuelConsumptionIntervalMultiplier = parseFloat(gusServerSettings['FuelConsumptionIntervalMultiplier']);
     if(gusServerSettings['globalVoiceChat']) config.bGlobalVoiceChat = gusServerSettings['globalVoiceChat'].toLowerCase() === 'true';
     if(gusServerSettings['ProximityChat']) config.bProximityChat = gusServerSettings['ProximityChat'].toLowerCase() === 'true';
     if(gusServerSettings['noTributeDownloads']) config.bNoTributeDownloads = gusServerSettings['noTributeDownloads'].toLowerCase() === 'true';
@@ -100,17 +92,32 @@ const mapIniToConfig = (gus: Record<string, Record<string, string>>, game: Recor
 
     // FIX: Default to an empty object `{}` if the section does not exist to prevent a crash.
     const gusShooterGameUserSettings = gus['/script/shootergame.shootergamesettings'] || gus['/script/shootergame.shootergamemode'] || {};
-    const thirdPersonKey = gusShooterGameUserSettings['bAllowThirdPersonPlayer'] || gusShooterGameUserSettings['bThirdPersonPlayer'];
-    if (thirdPersonKey !== undefined) config.bAllowThirdPersonPlayer = thirdPersonKey.toLowerCase() === 'true';
     if(gusShooterGameUserSettings['bShowFloatingDamageText'] !== undefined) config.bShowFloatingDamageText = gusShooterGameUserSettings['bShowFloatingDamageText'].toLowerCase() === 'true';
-    const flyerCarryKey = gusShooterGameUserSettings['bAllowFlyerCarryPvE'] || gusShooterGameUserSettings['bAllowFlyerCarryPVE'];
-    if(flyerCarryKey !== undefined) config.bAllowFlyerCarryPvE = flyerCarryKey.toLowerCase() === 'true';
-    if(gusShooterGameUserSettings['bDisableStructurePlacementCollision'] !== undefined) config.bDisableStructurePlacementCollision = gusShooterGameUserSettings['bDisableStructurePlacementCollision'].toLowerCase() === 'true';
     
     // Game.ini parsing (using lowercase section keys)
     const gameShooterGameMode = game['/script/shootergame.shootergamemode'] || {};
     if(gameShooterGameMode['bDisableFriendlyFire'] !== undefined) config.bDisableFriendlyFire = gameShooterGameMode['bDisableFriendlyFire'].toLowerCase() === 'true';
     
+    // Moved to Game.ini checks
+    if(gameShooterGameMode['MatingIntervalMultiplier']) config.matingIntervalMultiplier = parseFloat(gameShooterGameMode['MatingIntervalMultiplier']);
+    if(gameShooterGameMode['EggHatchSpeedMultiplier']) config.eggHatchSpeedMultiplier = parseFloat(gameShooterGameMode['EggHatchSpeedMultiplier']);
+    if(gameShooterGameMode['BabyMatureSpeedMultiplier']) config.babyMatureSpeedMultiplier = parseFloat(gameShooterGameMode['BabyMatureSpeedMultiplier']);
+    if(gameShooterGameMode['HarvestHealthMultiplier']) config.harvestHealthMultiplier = parseFloat(gameShooterGameMode['HarvestHealthMultiplier']);
+    if(gameShooterGameMode['ItemSpoilingTimeMultiplier']) config.itemSpoilingTimeMultiplier = parseFloat(gameShooterGameMode['ItemSpoilingTimeMultiplier']);
+    if(gameShooterGameMode['FuelConsumptionIntervalMultiplier']) config.fuelConsumptionIntervalMultiplier = parseFloat(gameShooterGameMode['FuelConsumptionIntervalMultiplier']);
+    
+    if(gameShooterGameMode['bAllowCaveBuildingPvE'] !== undefined) config.bAllowCaveBuildingPvE = gameShooterGameMode['bAllowCaveBuildingPvE'].toLowerCase() === 'true';
+    if(gameShooterGameMode['bAlwaysAllowStructurePickup'] !== undefined) config.bAlwaysAllowStructurePickup = gameShooterGameMode['bAlwaysAllowStructurePickup'].toLowerCase() === 'true';
+    
+    const thirdPersonKey = gameShooterGameMode['bAllowThirdPersonPlayer'] || gameShooterGameMode['bThirdPersonPlayer'];
+    if (thirdPersonKey !== undefined) config.bAllowThirdPersonPlayer = thirdPersonKey.toLowerCase() === 'true';
+
+    const flyerCarryKey = gameShooterGameMode['bAllowFlyerCarryPvE'] || gameShooterGameMode['bAllowFlyerCarryPVE'];
+    if(flyerCarryKey !== undefined) config.bAllowFlyerCarryPvE = flyerCarryKey.toLowerCase() === 'true';
+    
+    if(gameShooterGameMode['bDisableStructurePlacementCollision'] !== undefined) config.bDisableStructurePlacementCollision = gameShooterGameMode['bDisableStructurePlacementCollision'].toLowerCase() === 'true';
+
+
     // Mods can be in either file. Prioritize GUS.ini as it's often used as a launch param override.
     const modsFromGus = gusServerSettings['ActiveMods'];
     const modsFromGameIni = gameShooterGameMode['ActiveMods'];
