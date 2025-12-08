@@ -2,7 +2,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "BT Ark Ascended Server Manager",
-  "version": "0.1.40",
+  "version": "1.0.0",
   "identifier": "com.bt.ark.server.manager",
   "build": {
     "beforeDevCommand": "vite",
@@ -78,7 +78,8 @@
               "allow": [
                 { "url": "https://steamcdn-a.akamaihd.net/**" },
                 { "url": "https://generativelanguage.googleapis.com/**" },
-                { "url": "https://api.curseforge.com/**" }
+                { "url": "https://api.curseforge.com/**" },
+                { "url": "https://discord.com/api/webhooks/**" }
               ]
             }
           ]
@@ -108,5 +109,4 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERFMTJEMUMyOUUzM0JFQQpSV1RxTytNcEhDM2hEUUpLWWZRWVJmYUQ5eDhlSGRROURyYU9PNTNodkhlYi9hQzBjazcyQVltSwo="
     }
   }
-
 }
