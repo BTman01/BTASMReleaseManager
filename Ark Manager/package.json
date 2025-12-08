@@ -1,7 +1,7 @@
 {
   "name": "ark-ascended-server-manager",
   "private": true,
-  "version": "0.1.38",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.0.0",
+    "@google/generative-ai": "^0.24.1",
     "@tauri-apps/api": "^2.0.0-beta",
     "@tauri-apps/plugin-autostart": "^2.0.0-beta",
     "@tauri-apps/plugin-dialog": "^2.0.0-beta",
