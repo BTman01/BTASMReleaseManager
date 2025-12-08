@@ -29,8 +29,11 @@ jobs:
       - name: Install frontend dependencies
         working-directory: ./Ark Manager
         run: npm install
-
-      # ===============================================================
+        
+      - name: Build frontend
+        working-directory: ./Ark Manager
+        run: npm run build
+            # ===============================================================
       # 🔥 DEBUG: Signing Environment + Paths
       # ===============================================================
       - name: Debug Signing Environment (Base64 + Decoded + Paths)
