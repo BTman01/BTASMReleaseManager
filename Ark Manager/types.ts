@@ -93,6 +93,10 @@ export interface ServerConfig {
   bEnableClustering: boolean;
   clusterId: string;
   clusterDirOverride: string;
+
+  // Discord Integration
+  discordWebhookUrl: string;
+  discordNotificationsEnabled: boolean;
 }
 
 export interface ServerProfile {
