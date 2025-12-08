@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { CogIcon, BellIcon, WindowMinimizeIcon, WindowMaximizeIcon, WindowRestoreIcon, WindowCloseIcon, DownloadCloudIcon } from './icons';

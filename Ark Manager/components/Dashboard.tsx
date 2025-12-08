@@ -1,9 +1,11 @@
 
+
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ServerStatus, ServerConfig, ModAnalysisResult, ServerProfile, BackupInfo, ModAnalysis, CurseForgeMod, AppSettings, AppNotification, PlayerInfo, RconDiagnosticStep, PlayerEventPayload } from '../types';
 import { ARK_MAPS } from '../constants';
 import * as directoryService from '../services/directoryService';
 import * as notificationService from '../services/notificationService';
+import * as discordService from '../services/discordService';
 import * as iniParsingService from '../services/iniParsingService';
 import ServerControls from './ServerControls';
 import ServerConfigComponent from './ServerConfig';
@@ -21,6 +23,8 @@ import Console from './Console';
 import ImportSettingsModal from './ImportSettingsModal';
 import ShutdownModal from './ShutdownModal';
 import UnsavedChangesModal from './UnsavedChangesModal';
+import ClusterVisualization from './ClusterVisualization';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import * as fs from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
@@ -97,13 +101,15 @@ const getDefaultServerConfig = (profileCount: number): ServerConfig => ({
     bEnableClustering: false,
     clusterId: 'MyCluster123',
     clusterDirOverride: '',
+    discordWebhookUrl: '',
+    discordNotificationsEnabled: false,
 });
 
 
 const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, profileToSelect, onUpdateAppSettings, onShowToast }) => {
   const [profiles, setProfiles] = useState<ServerProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'config' | 'mods' | 'gameSettings' | 'backups' | 'serverManagement' | 'playerManagement' | 'console'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'mods' | 'gameSettings' | 'clustering' | 'backups' | 'serverManagement' | 'playerManagement' | 'console'>('config');
   const [isAnalyzingMods, setIsAnalyzingMods] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
@@ -142,6 +148,10 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
   const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = useState(false);
   const [pendingStartProfileId, setPendingStartProfileId] = useState<string | null>(null);
+  
+  // Delete Profile Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [profileToDelete, setProfileToDelete] = useState<{ id: string, name: string } | null>(null);
 
   // Timed Restart State
   const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
@@ -408,6 +418,8 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
         const { config, id, profileName } = profileToRestart;
         
+        discordService.sendDiscordNotification(profileToRestart, 'Server Restarting', 'The server is restarting...', discordService.DiscordColors.YELLOW);
+
         if (isScheduled) {
             notificationService.sendNotification('Scheduled Restart', `Server "${profileName}" is beginning its scheduled restart.`);
         }
@@ -976,6 +988,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
                         if (event.payload.success) {
                             notificationService.sendNotification('Update Complete', `Server files for "${currentActiveProfile.profileName}" updated successfully.`);
+                            discordService.sendDiscordNotification(currentActiveProfile, 'Update Complete', 'Server files have been updated successfully.', discordService.DiscordColors.BLUE);
                             setNotifications(prev => prev.filter(n => n.id !== `update-${currentActiveProfile.id}`));
                             try {
                                 const newBuildId = await invoke<string>('get_server_build_info', { installPath: currentActiveProfile.path });
@@ -985,6 +998,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                             }
                         } else {
                             notificationService.sendNotification('Update Failed', `Failed to update server files for "${currentActiveProfile.profileName}".`);
+                            discordService.sendDiscordNotification(currentActiveProfile, 'Update Failed', 'Failed to update server files.', discordService.DiscordColors.RED);
                         }
                     }
                 }),
@@ -993,6 +1007,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                     const runningProfile = profilesRef.current.find(p => p.id === profile_id);
                     if (runningProfile) {
                         notificationService.sendNotification('Server Running', `Server "${runningProfile.profileName}" is now running.`);
+                        discordService.sendDiscordNotification(runningProfile, 'Server Started', 'The server is now online.', discordService.DiscordColors.GREEN);
                     }
                     if (startupTimerRef.current) {
                         clearTimeout(startupTimerRef.current);
@@ -1017,6 +1032,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                     } else {
                         if (stoppedProfile) {
                             notificationService.sendNotification('Server Stopped', `Server "${stoppedProfile.profileName}" has stopped.`);
+                            discordService.sendDiscordNotification(stoppedProfile, 'Server Stopped', 'The server has stopped.', discordService.DiscordColors.RED);
                         }
                         updateProfile(profile_id, { status: ServerStatus.Stopped });
                     }
@@ -1111,21 +1127,29 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         return;
     }
 
-    const confirmed = await dialog.confirm(`Are you sure you want to delete the profile "${profileToDelete.profileName}"?\nThis action cannot be undone.`, {
-        title: 'Confirm Deletion',
-    });
+    setProfileToDelete({ id: profileToDelete.id, name: profileToDelete.profileName });
+    setIsDeleteModalOpen(true);
+  };
 
-    if (confirmed) {
-        const newProfiles = profiles.filter(p => p.id !== id);
+  const confirmDeleteProfile = () => {
+    if (profileToDelete) {
+        const newProfiles = profiles.filter(p => p.id !== profileToDelete.id);
         setProfiles(newProfiles);
         directoryService.saveProfiles(newProfiles);
 
-        if (activeProfileId === id) {
+        if (activeProfileId === profileToDelete.id) {
             setActiveProfileId(newProfiles.length > 0 ? newProfiles[0].id : null);
         }
+        onShowToast(`Profile "${profileToDelete.name}" deleted.`, 'success');
     }
+    setIsDeleteModalOpen(false);
+    setProfileToDelete(null);
   };
 
+  const cancelDeleteProfile = () => {
+      setIsDeleteModalOpen(false);
+      setProfileToDelete(null);
+  };
 
   const handleConfigChange = useCallback((newConfig: Partial<ServerConfig>) => {
     if (!activeProfile) return;
@@ -1505,6 +1529,13 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         onDiscard={handleUnsavedChangesDiscard}
         onCancel={handleUnsavedChangesCancel}
       />
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        profileName={profileToDelete?.name || ''}
+        onConfirm={confirmDeleteProfile}
+        onCancel={cancelDeleteProfile}
+      />
+
       {status === ServerStatus.Updating && (
           <UpdateProgressModal 
             log={updateLog} 
@@ -1610,6 +1641,16 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                                     Game Settings
                                 </button>
                                 <button
+                                    onClick={() => setActiveTab('clustering')}
+                                    className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                    activeTab === 'clustering'
+                                        ? 'border-cyan-500 text-cyan-400'
+                                        : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
+                                    }`}
+                                >
+                                    Clustering
+                                </button>
+                                <button
                                     onClick={() => setActiveTab('backups')}
                                     className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
                                     activeTab === 'backups'
@@ -1658,19 +1699,15 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
           
           {/* Scrollable Content Section */}
           <div className={`flex-grow relative ${activeTab === 'console' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
-            {/* 
-                Use conditional classes for the container. 
-                min-h-full: allows content to expand beyond viewport (fixes mod list overflow issue).
-                h-full: restricts height to viewport (required for console).
-            */}
-            <div className={`container mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'console' ? 'h-full py-0' : 'min-h-full py-6'}`}>
+            <div className={`container mx-auto px-4 sm:px-6 lg:px-8 h-full ${activeTab === 'console' ? 'py-0' : 'py-6'}`}>
               {activeProfile && (
-                <div key={activeTab} className={`animate-fade-in ${activeTab === 'console' ? 'h-full' : 'min-h-full'}`}>
+                <div key={activeTab} className="animate-fade-in h-full">
                   {activeTab === 'config' && (
                       <div className="max-w-3xl mx-auto">
                           <ServerConfigComponent
                               config={activeProfile.config}
                               path={activeProfile.path}
+                              profiles={profiles}
                               onConfigChange={handleConfigChange}
                               onPathChange={handlePathChange}
                               onBrowsePath={handleBrowsePath}
@@ -1700,6 +1737,12 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                         config={activeProfile.config}
                         onConfigChange={handleConfigChange}
                         isActionInProgress={isActionInProgress}
+                      />
+                  )}
+                  {activeTab === 'clustering' && (
+                      <ClusterVisualization 
+                        profiles={profiles}
+                        onSelectProfile={setActiveProfileId}
                       />
                   )}
                   {activeTab === 'backups' && (

@@ -1,13 +1,16 @@
-import React from 'react';
-import { ServerConfig } from '../types';
+
+
+import React, { useMemo } from 'react';
+import { ServerConfig, ServerProfile } from '../types';
 import { ARK_MAPS } from '../constants';
-import { FolderIcon } from './icons';
+import { FolderIcon, UpdateIcon, LinkIcon, DiscordIcon } from './icons';
 import { open } from '@tauri-apps/plugin-shell';
 import * as dialog from '@tauri-apps/plugin-dialog';
 
 interface ServerConfigProps {
   config: ServerConfig;
   path: string | null;
+  profiles: ServerProfile[];
   onConfigChange: (newConfig: Partial<ServerConfig>) => void;
   onPathChange: (newPath: string) => void;
   onBrowsePath: () => void;
@@ -59,7 +62,7 @@ const Checkbox: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: 
 );
 
 
-const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, onConfigChange, onPathChange, onBrowsePath, onSave, isActionInProgress, isSaving, localIps }) => {
+const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, profiles, onConfigChange, onPathChange, onBrowsePath, onSave, isActionInProgress, isSaving, localIps }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -98,6 +101,39 @@ const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, onCo
       }
   };
 
+  // Extract unique existing Cluster IDs
+  const existingClusters = useMemo(() => {
+      const ids = new Set<string>();
+      profiles.forEach(p => {
+          if (p.config.bEnableClustering && p.config.clusterId) {
+              ids.add(p.config.clusterId);
+          }
+      });
+      return Array.from(ids);
+  }, [profiles]);
+
+  const generateClusterId = () => {
+      const randomId = 'Cluster_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      onConfigChange({ clusterId: randomId });
+  };
+
+  // Check if current cluster ID exists in other profiles and has a directory we can sync
+  const matchingClusterProfile = useMemo(() => {
+      if (!config.clusterId) return null;
+      return profiles.find(p => 
+          p.config.bEnableClustering && 
+          p.config.clusterId === config.clusterId && 
+          p.config.clusterDirOverride && 
+          p.config.clusterDirOverride !== config.clusterDirOverride
+      );
+  }, [profiles, config.clusterId, config.clusterDirOverride]);
+
+  const handleSyncDirectory = () => {
+      if (matchingClusterProfile) {
+          onConfigChange({ clusterDirOverride: matchingClusterProfile.config.clusterDirOverride });
+      }
+  };
+
   return (
     <div className="space-y-6">
         <Card title="Server Configuration" footer={
@@ -112,7 +148,6 @@ const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, onCo
             <div>
                 <Label htmlFor="serverPath">Server Path</Label>
                 <div className="flex space-x-2">
-                    {/* FIX: Use `onPathChange` for the server path input instead of the incorrect `onConfigChange`. */}
                     <Input
                         id="serverPath"
                         name="serverPath"
@@ -221,19 +256,47 @@ const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, onCo
                 <div className="space-y-4 animate-fade-in pl-7">
                     <div>
                         <Label htmlFor="clusterId">Cluster ID</Label>
-                        <Input
-                            id="clusterId"
-                            name="clusterId"
-                            type="text"
-                            value={config.clusterId}
-                            onChange={handleChange}
-                            disabled={isActionInProgress}
-                            placeholder="A unique ID shared by all servers in the cluster"
-                        />
+                        <div className="flex space-x-2">
+                            <input 
+                                id="clusterId"
+                                name="clusterId"
+                                list="existing-clusters"
+                                type="text"
+                                value={config.clusterId}
+                                onChange={handleChange}
+                                disabled={isActionInProgress}
+                                placeholder="A unique ID shared by all servers in the cluster"
+                                className="w-full bg-gray-900/50 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition disabled:bg-gray-700 disabled:cursor-not-allowed"
+                            />
+                            <datalist id="existing-clusters">
+                                {existingClusters.map(id => (
+                                    <option key={id} value={id} />
+                                ))}
+                            </datalist>
+                            <button
+                                onClick={generateClusterId}
+                                disabled={isActionInProgress}
+                                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-cyan-400 font-bold rounded-md transition-colors duration-200 border border-gray-600 whitespace-nowrap text-sm"
+                                title="Generate Random ID"
+                            >
+                                Generate ID
+                            </button>
+                        </div>
                          <p className="text-xs text-gray-400 mt-1">All servers in the same cluster must have the exact same Cluster ID.</p>
                     </div>
                      <div>
-                        <Label htmlFor="clusterDirOverride">Cluster Directory Override</Label>
+                        <div className="flex justify-between items-center mb-1">
+                            <Label htmlFor="clusterDirOverride">Cluster Directory Override</Label>
+                            {matchingClusterProfile && (
+                                <button 
+                                    onClick={handleSyncDirectory}
+                                    className="text-xs text-cyan-400 hover:text-cyan-300 hover:underline flex items-center animate-fade-in"
+                                >
+                                    <UpdateIcon className="w-3 h-3 mr-1" />
+                                    Sync from {matchingClusterProfile.profileName}
+                                </button>
+                            )}
+                        </div>
                         <div className="flex space-x-2">
                             <Input
                                 id="clusterDirOverride"
@@ -253,6 +316,34 @@ const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, onCo
                             </button>
                         </div>
                         <p className="text-xs text-gray-400 mt-1">A shared directory where all servers in the cluster will store transfer data.</p>
+                    </div>
+                </div>
+            )}
+        </Card>
+        
+        <Card title="Discord Integration">
+            <div className="flex items-center mb-4 text-gray-200">
+                <DiscordIcon className="w-6 h-6 mr-2 text-[#5865F2]" />
+                <span className="font-semibold">Discord Webhook Notifications</span>
+            </div>
+            <Checkbox id="discordNotificationsEnabled" name="discordNotificationsEnabled" label="Enable Discord Notifications" checked={config.discordNotificationsEnabled} onChange={handleChange} disabled={isActionInProgress} />
+            {config.discordNotificationsEnabled && (
+                <div className="space-y-4 animate-fade-in pl-7 mt-2">
+                     <div>
+                        <Label htmlFor="discordWebhookUrl">Webhook URL</Label>
+                        <Input
+                            id="discordWebhookUrl"
+                            name="discordWebhookUrl"
+                            type="text"
+                            value={config.discordWebhookUrl || ''}
+                            onChange={handleChange}
+                            disabled={isActionInProgress}
+                            placeholder="https://discord.com/api/webhooks/..."
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                            Paste the full Webhook URL from your Discord channel settings. 
+                            Notifications will be sent for Server Start, Stop, Updates, and Restarts.
+                        </p>
                     </div>
                 </div>
             )}
@@ -279,8 +370,9 @@ const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, onCo
                 <a 
                     href="https://portforward.com/ark-survival-ascended/"
                     onClick={handleLinkClick}
-                    className="text-cyan-400 hover:text-cyan-300 hover:underline"
+                    className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center mt-2"
                 >
+                    <LinkIcon className="w-4 h-4 mr-2" />
                     Click here for detailed port forwarding instructions
                 </a>
             </div>

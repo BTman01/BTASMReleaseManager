@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppSettings } from '../types';
 import { CogIcon, FolderIcon, DownloadCloudIcon } from './icons';
@@ -161,69 +162,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '0.1.39'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.0.0'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v0.1.39 (Latest)</p>
+                        <p className="font-semibold text-gray-200">v1.0.0 (Major Release)</p>
                         <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Config Fixes:</strong> Relocated critical breeding, structure, and player settings (e.g., EggHatchSpeed, MatingInterval) to <code>Game.ini</code> to ensure they are correctly applied by the server.</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-200">v0.1.38</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Bug Fixes:</strong> Resolved TypeScript errors in the build pipeline affecting component property validation.</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-200">v0.1.37</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Optimization:</strong> Synchronization fixes for the update delivery system.</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-200">v0.1.36</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>New Update Experience:</strong> Replaced the system popup with a sleek, custom-themed window that shows detailed release notes before installing.</li>
-                            <li><strong>Non-Intrusive Notifications:</strong> Updates now appear as a subtle indicator in the header rather than interrupting your workflow immediately.</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-200">v0.1.35</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Updater Configuration:</strong> Restored the confirmed working Public Key format for the updater service.</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-200">v0.1.34</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Custom Branding:</strong> Updated application icons to the new BTASM logo design.</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-200">v0.1.33</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Update System Repair:</strong> Synchronized cryptographic keys to fix "signature verification failed" errors during updates.</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-200">v0.1.32</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Security Maintenance:</strong> Updated cryptographic signing keys to ensure secure and verified updates via GitHub Releases.</li>
-                        </ul>
-                    </div>
-                     <div>
-                        <p className="font-semibold text-gray-200">v0.1.31</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Security Maintenance:</strong> Internal updates to key synchronization to resolve update verification issues.</li>
-                        </ul>
-                    </div>
-                     <div>
-                        <p className="font-semibold text-gray-200">v0.1.30</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>GitHub Releases Integration:</strong> Successfully migrated the update infrastructure to GitHub Releases. The app now downloads signed updates directly from the official repository.</li>
+                            <li><strong>Discord Integration:</strong> Send real-time server status notifications (Start, Stop, Updates) directly to your Discord community via Webhooks.</li>
+                            <li><strong>Cluster Visualization:</strong> Added a dedicated 'Clustering' tab to visually manage server clusters and identify configuration mismatches.</li>
+                            <li><strong>Enhanced Clustering Setup:</strong> Generate unique Cluster IDs, autocomplete existing IDs, and sync shared directories between profiles with a single click.</li>
+                            <li><strong>UI Improvements:</strong> Introduced a new, custom-themed modal for deleting profiles to match the application's aesthetic.</li>
                         </ul>
                     </div>
                 </div>
@@ -247,6 +196,67 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.39</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Config Fixes:</strong> Relocated critical breeding, structure, and player settings (e.g., EggHatchSpeed, MatingInterval) to <code>Game.ini</code> to ensure they are correctly applied by the server.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.38</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Bug Fixes:</strong> Resolved TypeScript errors in the build pipeline affecting component property validation.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.37</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Optimization:</strong> Synchronization fixes for the update delivery system.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.36</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>New Update Experience:</strong> Replaced the system popup with a sleek, custom-themed window that shows detailed release notes before installing.</li>
+                                    <li><strong>Non-Intrusive Notifications:</strong> Updates now appear as a subtle indicator in the header rather than interrupting your workflow immediately.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.35</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Updater Configuration:</strong> Restored the confirmed working Public Key format for the updater service.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.34</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Custom Branding:</strong> Updated application icons to the new BTASM logo design.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.33</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Update System Repair:</strong> Synchronized cryptographic keys to fix "signature verification failed" errors during updates.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v0.1.32</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Security Maintenance:</strong> Updated cryptographic signing keys to ensure secure and verified updates via GitHub Releases.</li>
+                                </ul>
+                            </div>
+                             <div>
+                                <p className="font-semibold text-gray-200">v0.1.31</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Security Maintenance:</strong> Internal updates to key synchronization to resolve update verification issues.</li>
+                                </ul>
+                            </div>
+                             <div>
+                                <p className="font-semibold text-gray-200">v0.1.30</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>GitHub Releases Integration:</strong> Successfully migrated the update infrastructure to GitHub Releases. The app now downloads signed updates directly from the official repository.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v0.1.11</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400">

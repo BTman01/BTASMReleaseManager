@@ -127,7 +127,8 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, isA
             <Card title="Game & Player Settings" icon={<CogIcon />}>
                 <p className="text-sm text-gray-400 -mt-2 mb-2">
                     Adjust gameplay multipliers and settings. These changes will be written to your
-                    <code className="bg-black/50 text-cyan-300 px-1 py-0.5 rounded-sm text-xs mx-1">GameUserSettings.ini</code> file when you click "Save Settings" on the Server Configuration tab.
+                    <code className="bg-black/50 text-cyan-300 px-1 py-0.5 rounded-sm text-xs mx-1">GameUserSettings.ini</code>
+                    or <code className="bg-black/50 text-cyan-300 px-1 py-0.5 rounded-sm text-xs mx-1">Game.ini</code> file as appropriate when you click "Save Settings".
                 </p>
 
                 <Section title="Rate Multipliers">
