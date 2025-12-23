@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { ServerStatus, ServerProfile } from '../types';
 import { PlayIcon, StopIcon, UpdateIcon, InstallIcon, RestartIcon, ClockIcon, ServerIcon, UsersIcon } from './icons';
@@ -144,10 +145,18 @@ const ServerControls: React.FC<ServerControlsProps> = ({
                         <div className="font-mono font-semibold">{formatDuration(liveUptime)}</div>
                     </div>
                 </div>
-                 <div className="flex items-center space-x-2">
-                    <ServerIcon className="w-5 h-5 text-cyan-400"/>
+                 <div className="flex items-center space-x-2" title={profile?.pid ? `Monitored Process ID: ${profile.pid}` : "Monitoring via Logs"}>
+                    <div className="relative">
+                        <ServerIcon className="w-5 h-5 text-cyan-400"/>
+                        {profile?.pid && (
+                            <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                            </span>
+                        )}
+                    </div>
                     <div>
-                        <div className="text-xs text-gray-400">Memory</div>
+                        <div className="text-xs text-gray-400">Memory {profile?.pid ? `(PID: ${profile.pid})` : ''}</div>
                         <div className="font-mono font-semibold">{formatBytes(profile?.memoryUsage || 0)}</div>
                     </div>
                 </div>

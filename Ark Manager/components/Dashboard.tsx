@@ -1,7 +1,5 @@
-
-
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { ServerStatus, ServerConfig, ModAnalysisResult, ServerProfile, BackupInfo, ModAnalysis, CurseForgeMod, AppSettings, AppNotification, PlayerInfo, RconDiagnosticStep, PlayerEventPayload } from '../types';
+import { ServerStatus, ServerConfig, ModAnalysisResult, ServerProfile, BackupInfo, ModAnalysis, CurseForgeMod, AppSettings, AppNotification, PlayerInfo, RconDiagnosticStep, PlayerEventPayload, AnalyticsDataPoint } from '../types';
 import { ARK_MAPS } from '../constants';
 import * as directoryService from '../services/directoryService';
 import * as notificationService from '../services/notificationService';
@@ -25,6 +23,7 @@ import ShutdownModal from './ShutdownModal';
 import UnsavedChangesModal from './UnsavedChangesModal';
 import ClusterVisualization from './ClusterVisualization';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import AnalyticsDashboard from './AnalyticsDashboard';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import * as fs from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
@@ -109,7 +108,7 @@ const getDefaultServerConfig = (profileCount: number): ServerConfig => ({
 const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, profileToSelect, onUpdateAppSettings, onShowToast }) => {
   const [profiles, setProfiles] = useState<ServerProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'config' | 'mods' | 'gameSettings' | 'clustering' | 'backups' | 'serverManagement' | 'playerManagement' | 'console'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'mods' | 'gameSettings' | 'clustering' | 'analytics' | 'backups' | 'serverManagement' | 'playerManagement' | 'console'>('config');
   const [isAnalyzingMods, setIsAnalyzingMods] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
@@ -162,9 +161,13 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
   const updateCheckTimerRef = useRef<number | null>(null);
   const restartIntervalRef = useRef<number | null>(null);
   const statsIntervalRef = useRef<number | null>(null);
+  const analyticsIntervalRef = useRef<number | null>(null);
   const shutdownTimerIntervalRef = useRef<number | null>(null);
 
   const lastRestartBroadcastMinuteRef = useRef<number | null>(null);
+  
+  // Ref to track last saved analytics time to prevent spamming DB
+  const lastAnalyticsSaveTimeRef = useRef<number>(0);
 
   const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
   const status = activeProfile?.status || ServerStatus.NotInstalled;
@@ -220,7 +223,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
     }
   }, [updateProfile]);
 
-  const executeServerStart = useCallback(async (profileIdToStart: string) => {
+const executeServerStart = useCallback(async (profileIdToStart: string) => {
     const profileToStart = profilesRef.current.find(p => p.id === profileIdToStart);
 
     if (!profileToStart || !profileToStart.path) return;
@@ -282,9 +285,22 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
             launchArgs.push(`-NoTransferFromFiltering`);
         }
         
-        const serverExePath = await join(profileToStart.path, 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe');
+        // Try new Steam structure first, then fall back to old structure
+        let serverExePath = await join(profileToStart.path, 'steamcmd', 'steamapps', 'common', 'ARK Survival Ascended Dedicated Server', 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe');
+        let serverExeExists = await fs.exists(serverExePath);
+
+        if (!serverExeExists) {
+            // Fall back to old structure
+            serverExePath = await join(profileToStart.path, 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe');
+            serverExeExists = await fs.exists(serverExePath);
+            
+            if (!serverExeExists) {
+                throw new Error('ArkAscendedServer.exe not found in either the new or old Steam directory structure.');
+            }
+        }
         
-        await invoke('start_ark_server', {
+        // Capture the returned PID from the backend
+        const pid = await invoke<number>('start_ark_server', {
             profileId: profileId,
             installPath: profileToStart.path,
             serverPath: serverExePath,
@@ -294,6 +310,10 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
             rconPassword: (rconPassword && rconPassword.trim()) ? rconPassword : adminPassword,
             bEnableRcon: bEnableRcon,
         });
+
+        // Store PID in the profile for live monitoring
+        updateProfile(profileId, { pid: pid });
+        setManagerLog(prev => [...prev, `[Manager] Server process started with PID: ${pid}`]);
         
     } catch (error) {
         onShowToast('Error starting server. See console for details.', 'error');
@@ -302,7 +322,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         updateProfile(profileId, { status: ServerStatus.Error });
         notificationService.sendNotification('Server Start Failed', `The server "${profileToStart.profileName}" failed to start.`);
     }
-  }, [updateProfile, onShowToast]);
+}, [updateProfile, onShowToast]);
 
   const onStart = useCallback(async () => {
     const currentActiveId = activeProfileIdRef.current;
@@ -752,14 +772,35 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
         try {
             const stats = await invoke<{ uptimeSeconds: number; memoryBytes: number; }>('get_server_stats', { profileId });
+            
+            // UPDATED: Now we trust the backend PID stats directly.
             updateProfile(profileId, {
                 uptime: stats.uptimeSeconds,
                 memoryUsage: stats.memoryBytes,
             });
+
+            // Save Analytics Data (throttled to once per minute)
+            const now = Date.now();
+            if (now - lastAnalyticsSaveTimeRef.current >= 60000) {
+                lastAnalyticsSaveTimeRef.current = now;
+                // Get player count from state directly or use the last known count in profile
+                const currentPlayerCount = profilesRef.current.find(p => p.id === profileId)?.playerCount || 0;
+                
+                await directoryService.saveAnalyticsData({
+                    profileId,
+                    timestamp: now,
+                    memoryUsage: stats.memoryBytes,
+                    playerCount: currentPlayerCount
+                });
+            }
+
         } catch (error) {
+            // FIX: Do NOT clear the interval on error. 
+            // Just log it and try again next tick.
             console.error(`Failed to fetch stats for profile ${profileId}:`, error);
-            updateProfile(profileId, { uptime: undefined, memoryUsage: undefined });
-            if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+            
+            // FIX: Do NOT clear the memory/uptime from UI on error to prevent flashing.
+            // Just keep showing the stale data until it succeeds again.
         }
     };
     
@@ -769,7 +810,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
     if (activeProfile?.status === ServerStatus.Running) {
         fetchStats(); // Fetch immediately
-        statsIntervalRef.current = window.setInterval(fetchStats, 5000); // Poll every 5 seconds
+        statsIntervalRef.current = window.setInterval(fetchStats, 3000); // Poll every 3 seconds now
     } else {
         if (activeProfile && (activeProfile.uptime || activeProfile.memoryUsage)) {
             updateProfile(activeProfile.id, { uptime: undefined, memoryUsage: undefined });
@@ -1651,6 +1692,16 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                                     Clustering
                                 </button>
                                 <button
+                                    onClick={() => setActiveTab('analytics')}
+                                    className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                    activeTab === 'analytics'
+                                        ? 'border-cyan-500 text-cyan-400'
+                                        : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
+                                    }`}
+                                >
+                                    Analytics
+                                </button>
+                                <button
                                     onClick={() => setActiveTab('backups')}
                                     className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
                                     activeTab === 'backups'
@@ -1743,6 +1794,12 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                       <ClusterVisualization 
                         profiles={profiles}
                         onSelectProfile={setActiveProfileId}
+                      />
+                  )}
+                  {activeTab === 'analytics' && (
+                      <AnalyticsDashboard 
+                        profileId={activeProfile.id}
+                        profileName={activeProfile.profileName}
                       />
                   )}
                   {activeTab === 'backups' && (

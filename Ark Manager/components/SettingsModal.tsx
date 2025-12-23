@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppSettings } from '../types';
 import { CogIcon, FolderIcon, DownloadCloudIcon } from './icons';
@@ -96,7 +95,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
       >
         <div className="flex-shrink-0">
             <div className="flex items-center space-x-3 text-2xl font-bold text-cyan-400 mb-6">
-                <CogIcon className="w-7 h-7" />
+                < CogIcon className="w-7 h-7" />
                 <h3>Application Settings</h3>
             </div>
         </div>
@@ -162,17 +161,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.0.0'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.3.0'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v1.0.0 (Major Release)</p>
+                        <p className="font-semibold text-gray-200">v1.3.0 (Steam & Diagnostics Update)</p>
                         <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Discord Integration:</strong> Send real-time server status notifications (Start, Stop, Updates) directly to your Discord community via Webhooks.</li>
-                            <li><strong>Cluster Visualization:</strong> Added a dedicated 'Clustering' tab to visually manage server clusters and identify configuration mismatches.</li>
-                            <li><strong>Enhanced Clustering Setup:</strong> Generate unique Cluster IDs, autocomplete existing IDs, and sync shared directories between profiles with a single click.</li>
-                            <li><strong>UI Improvements:</strong> Introduced a new, custom-themed modal for deleting profiles to match the application's aesthetic.</li>
+                            <li><strong>Steam Path Intelligence:</strong> The manager now automatically scans for server files in both standard and nested SteamCMD structures (e.g., inside <code>steamapps/common/...</code>).</li>
+                            <li><strong>RCON Diagnostics:</strong> Added a troubleshooting suite in Player Management to help identify why RCON commands might be failing.</li>
+                            <li><strong>Build Manifest Fixes:</strong> Improved reliability when detecting Build IDs and comparing local vs. remote server versions.</li>
+                            <li><strong>Analytics Dashboard:</strong> Visual charts for tracking memory usage and player population over time for each profile.</li>
                         </ul>
                     </div>
                 </div>
@@ -196,6 +195,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.1.0 (Advanced Analytics)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Advanced Performance Monitoring:</strong> Completely redesigned Memory and Player Population charts.</li>
+                                    <li><strong>Interactive Tooltips:</strong> Hover over any point on the graph to see precise timestamped data.</li>
+                                    <li><strong>Improved Visualization:</strong> Added Y-axis labels, better scaling, and smooth visual gradients for metrics.</li>
+                                    <li><strong>Data Management:</strong> You can now clear the analytics history for individual server profiles if the data becomes stale.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.0.0 (Major Release)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Discord Integration:</strong> Send real-time server status notifications (Start, Stop, Updates) directly to your Discord community via Webhooks.</li>
+                                    <li><strong>Cluster Visualization:</strong> Added a dedicated 'Clustering' tab to visually manage server clusters and identify configuration mismatches.</li>
+                                    <li><strong>Enhanced Clustering Setup:</strong> Generate unique Cluster IDs, autocomplete existing IDs, and sync shared directories between profiles with a single click.</li>
+                                    <li><strong>UI Improvements:</strong> Introduced a new, custom-themed modal for deleting profiles to match the application's aesthetic.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v0.1.39</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400">
