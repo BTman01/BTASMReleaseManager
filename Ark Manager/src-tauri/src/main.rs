@@ -206,9 +206,8 @@ async fn start_ark_server(
         }
     }
 
-    let mut child = Command::new("cmd")
-        .arg("/C")
-        .arg(&server_path)
+    // SPAWN DIRECTLY (No "cmd /C") to get the actual game process ID
+    let mut child = Command::new(&server_path)
         .args(&args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -233,11 +232,32 @@ async fn start_ark_server(
 
     let win_clone = window.clone();
     let profile_id_clone = profile_id.clone();
-    let log_file_path = PathBuf::from(&install_path)
+    let log_file_path_new = PathBuf::from(&install_path)
+        .join("steamcmd")
+        .join("steamapps")
+        .join("common")
+        .join("ARK Survival Ascended Dedicated Server")
         .join("ShooterGame")
         .join("Saved")
         .join("Logs")
         .join("ShooterGame.log");
+
+    let log_file_path_old = PathBuf::from(&install_path)
+        .join("ShooterGame")
+        .join("Saved")
+        .join("Logs")
+        .join("ShooterGame.log");
+
+    // Determine which structure is in use by checking the server_path that was passed in
+    let log_file_path = if server_path.contains("steamapps\\common\\ARK Survival Ascended Dedicated Server") {
+        println!("Detected NEW server structure, using new log path");
+        log_file_path_new
+    } else {
+        println!("Detected OLD server structure, using old log path");
+        log_file_path_old
+    };
+
+    println!("Log file path: {:?}", log_file_path);
 
     let cancellation_token_clone = cancellation_token.clone();
     tokio::spawn(async move {
@@ -1114,23 +1134,53 @@ async fn delete_backup(install_path: String, backup_filename: String) -> Result<
 
 #[tauri::command]
 async fn get_server_build_info(install_path: String) -> Result<String, String> {
-    let manifest_path = PathBuf::from(&install_path)
+    let install_path_buf = PathBuf::from(&install_path);
+    
+    // Primary location: In the steamcmd/steamapps folder (your SteamCMD setup)
+    let manifest_path_steamcmd = install_path_buf
+        .join("steamcmd")
         .join("steamapps")
         .join("appmanifest_2430930.acf");
-
-    if !manifest_path.exists() {
-        return Err("App manifest file not found.".to_string());
-    }
-
-    let content = fs::read_to_string(manifest_path).map_err(|e| e.to_string())?;
-    let re = Regex::new(r#""buildid"\s*"(\d+)""#).unwrap();
-    if let Some(caps) = re.captures(&content) {
-        if let Some(build_id) = caps.get(1) {
-            return Ok(build_id.as_str().to_string());
+    
+    // Fallback location 1: In the install path's steamapps folder (old/direct installs)
+    let manifest_path_1 = install_path_buf
+        .join("steamapps")
+        .join("appmanifest_2430930.acf");
+    
+    // Fallback location 2: In the parent steamapps folder (Steam library structure)
+    let manifest_path_2 = install_path_buf
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|p| p.join("appmanifest_2430930.acf"));
+    
+    // Try each location in order
+    let manifest_paths = vec![
+        Some(manifest_path_steamcmd),  // Check steamcmd folder FIRST
+        Some(manifest_path_1),
+        manifest_path_2,
+    ];
+    
+    for maybe_path in manifest_paths.iter().flatten() {
+        if maybe_path.exists() {
+            println!("Found manifest at: {:?}", maybe_path);
+            let content = fs::read_to_string(maybe_path).map_err(|e| e.to_string())?;
+            let re = Regex::new(r#""buildid"\s*"(\d+)""#).unwrap();
+            if let Some(caps) = re.captures(&content) {
+                if let Some(build_id) = caps.get(1) {
+                    return Ok(build_id.as_str().to_string());
+                }
+            }
+            return Err("Could not find build ID in manifest file.".to_string());
         }
     }
-
-    Err("Could not find build ID in manifest file.".to_string())
+    
+    // If we get here, we couldn't find the manifest anywhere
+    Err(format!(
+        "App manifest file not found. Searched in:\n  - {:?}\n  - {:?}\n  - {:?}",
+        manifest_paths[0].as_ref().unwrap(),
+        manifest_paths[1].as_ref().unwrap(),
+        manifest_paths[2].as_ref().unwrap_or(&PathBuf::from("N/A"))
+    ))
 }
 
 #[tauri::command]
@@ -1184,6 +1234,8 @@ async fn get_server_stats(
     let pid = Pid::from_u32(info.pid);
     let mut sys = System::new();
 
+    // Use refresh_process(pid) to update just that process.
+    // This returns true if the process was found and updated.
     if sys.refresh_process(pid) {
         if let Some(process) = sys.process(pid) {
             Ok(ServerStats {
