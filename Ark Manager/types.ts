@@ -117,6 +117,7 @@ export interface ServerProfile {
   uptime?: number; // in seconds
   memoryUsage?: number; // in bytes
   playerCount?: number;
+  pid?: number; // Process ID for monitoring
 }
 
 export interface PlayerInfo {
@@ -186,4 +187,11 @@ export interface RconDiagnosticStep {
     name: string;
     status: RconDiagnosticStatus;
     details: string;
+}
+
+export interface AnalyticsDataPoint {
+  profileId: string;
+  timestamp: number;
+  memoryUsage: number; // in bytes
+  playerCount: number;
 }
