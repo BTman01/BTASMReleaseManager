@@ -8,6 +8,7 @@ export const ARK_MAPS = [
   'TheCenter_WP',
   'Extinction_WP',
   'Astraeos_WP',
+  'LostColony_WP',
   //'Genesis_WP',
   //'CrystalIsles_WP',
   //'Genesis2_WP',
