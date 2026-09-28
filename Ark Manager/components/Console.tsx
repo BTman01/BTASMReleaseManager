@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ServerProfile, ServerStatus } from '../types';
-import { TerminalIcon, AlertTriangleIcon } from './icons';
+import { TerminalIcon, AlertTriangleIcon, CopyIcon, CheckCircleIcon } from './icons';
 import { confirm } from '@tauri-apps/plugin-dialog';
 
 interface ConsoleProps {
@@ -42,7 +42,15 @@ const Console: React.FC<ConsoleProps> = ({ profile, managerLog, serverLog, onSen
   const lastScrollTop = useRef(0);
   const isUserScrollingRef = useRef(false);
 
+  const [copiedLogs, setCopiedLogs] = useState(false);
   const logToDisplay = activeConsoleTab === 'manager' ? managerLog : serverLog;
+
+  const handleCopyLogs = () => {
+    const text = logToDisplay.join('\n');
+    navigator.clipboard.writeText(text);
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2500);
+  };
   
   // Update last log times when logs change
   useEffect(() => {
@@ -197,6 +205,25 @@ const Console: React.FC<ConsoleProps> = ({ profile, managerLog, serverLog, onSen
 
             {/* Controls */}
             <div className="flex items-center space-x-2">
+              <button
+                onClick={handleCopyLogs}
+                disabled={logToDisplay.length === 0}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 text-xs rounded transition-colors"
+                title="Copy current console output to clipboard"
+              >
+                {copiedLogs ? (
+                  <>
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-green-400" />
+                    <span className="text-green-400 font-medium">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <CopyIcon className="w-3.5 h-3.5 text-gray-300" />
+                    <span>Copy Logs</span>
+                  </>
+                )}
+              </button>
+
               {!autoScroll && (
                 <button
                   onClick={scrollToBottom}

@@ -161,20 +161,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.5.0'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.5.2'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v1.5.0 (Automation, Dino Wipe, World Persistence & Broadcast Reasons)</p>
+                        <p className="font-semibold text-gray-200">v1.5.2 (Startup Diagnostics, Error Reporting & Console Polish)</p>
                         <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
-                            <li><strong>Automated Restart Wild Dino Wipe:</strong> Added a checkbox in the Automated Restarts section to automatically execute the <code className="text-cyan-300 font-mono text-xs">DestroyWildDinos</code> / <code className="text-cyan-300 font-mono text-xs">wipewilddinos</code> command via RCON as soon as the server comes online following an automated scheduled restart.</li>
-                            <li><strong>Pre-Shutdown & Pre-Restart SaveWorld:</strong> Added a persistent server configuration setting and modal checkbox to automatically execute <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> via RCON before any server stop or restart occurs, ensuring world state, player inventories, and tamed dinos are saved to disk.</li>
-                            <li><strong>Custom Broadcast Reasons in Timed Operations:</strong> Added a custom reason / announcement field to both Timed Shutdown and Timed Restart modals with quick-select presets (Maintenance, Applying Updates, Daily Reboot, Fixing Lag) and a real-time ServerChat announcement preview.</li>
-                            <li><strong>Full ServerChat Announcement Integration:</strong> Custom reasons are now broadcast to all online players in ServerChat at countdown initiation, during all intermediate checkpoint warnings (15m, 10m, 5m, 1m, 30s, etc.), and upon final shutdown/restart execution.</li>
-                            <li><strong>Scheduled Restart Announcement Reason:</strong> Added an optional custom reason/message field under Scheduled Restarts that is broadcast during automated daily restart countdowns.</li>
-                            <li><strong>Timed Modal SaveWorld Toggle:</strong> Added an interactive "Save world before shutdown/restart" toggle directly in the timer confirmation dialogs.</li>
-                            <li><strong>Enhanced RCON Reliability:</strong> Integrated automated retries and socket readiness delays for post-restart commands, with intelligent debouncing to avoid redundant back-to-back saves.</li>
+                            <li><strong>Startup Failure Diagnostics Modal:</strong> Added a dedicated diagnostics window that automatically appears if a server fails to launch, displaying the exact operating system error, verified candidate executable paths, active launch arguments, and troubleshooting checklist.</li>
+                            <li><strong>One-Click Diagnostic Export:</strong> Added a "Copy Diagnostic Report" button in the failure dialog to instantly copy all startup details and configuration paths to the clipboard for troubleshooting.</li>
+                            <li><strong>Automatic Console Log Redirection:</strong> Server startup failures and detailed stack traces are now automatically dispatched directly to the Manager Log in the Console tab, with an automatic tab switch so the issue is immediately visible.</li>
+                            <li><strong>Console Log Clipboard Copy:</strong> Added a "Copy Logs" button to the Console tab toolbar to quickly export manager or server logs.</li>
+                            <li><strong>Multi-Path Executable Discovery:</strong> Enhanced the launcher to verify executable existence across both standard and nested <code>/server/</code> directory hierarchies, with active working directory isolation to <code>Win64</code> for reliable DLL resolution.</li>
+                            <li><strong>Release Security:</strong> Maintained disabled developer tools and element inspection in production release builds.</li>
                         </ul>
                     </div>
                 </div>
@@ -198,6 +197,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.5.0 (Automation, Dino Wipe, World Persistence & Broadcast Reasons)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
+                                    <li><strong>Automated Restart Wild Dino Wipe:</strong> Added a checkbox in the Automated Restarts section to automatically execute the <code className="text-cyan-300 font-mono text-xs">DestroyWildDinos</code> / <code className="text-cyan-300 font-mono text-xs">wipewilddinos</code> command via RCON as soon as the server comes online following an automated scheduled restart.</li>
+                                    <li><strong>Pre-Shutdown & Pre-Restart SaveWorld:</strong> Added a persistent server configuration setting and modal checkbox to automatically execute <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> via RCON before any server stop or restart occurs, ensuring world state, player inventories, and tamed dinos are saved to disk.</li>
+                                    <li><strong>Custom Broadcast Reasons in Timed Operations:</strong> Added a custom reason / announcement field to both Timed Shutdown and Timed Restart modals with quick-select presets (Maintenance, Applying Updates, Daily Reboot, Fixing Lag) and a real-time ServerChat announcement preview.</li>
+                                    <li><strong>Full ServerChat Announcement Integration:</strong> Custom reasons are now broadcast to all online players in ServerChat at countdown initiation, during all intermediate checkpoint warnings (15m, 10m, 5m, 1m, 30s, etc.), and upon final shutdown/restart execution.</li>
+                                    <li><strong>Scheduled Restart Announcement Reason:</strong> Added an optional custom reason/message field under Scheduled Restarts that is broadcast during automated daily restart countdowns.</li>
+                                    <li><strong>Timed Modal SaveWorld Toggle:</strong> Added an interactive "Save world before shutdown/restart" toggle directly in the timer confirmation dialogs.</li>
+                                    <li><strong>Enhanced RCON Reliability:</strong> Integrated automated retries and socket readiness delays for post-restart commands, with intelligent debouncing to avoid redundant back-to-back saves.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v1.4.0 (Robust Pathing & Configuration Synchronization)</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400">
