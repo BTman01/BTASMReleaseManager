@@ -9,7 +9,7 @@ export const ARK_MAPS = [
   'Extinction_WP',
   'Astraeos_WP',
   'LostColony_WP',
-  //'Genesis_WP',
+  'Genesis_WP',
   //'CrystalIsles_WP',
   //'Genesis2_WP',
   //'LostIsland_WP',
