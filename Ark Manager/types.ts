@@ -28,66 +28,119 @@ export interface ServerConfig {
   bDisableBattleEye: boolean;
   serverPlatform: 'All' | 'PC';
   
-  // Game Settings
+  // Game & General Multipliers (GameUserSettings.ini [ServerSettings])
   xpMultiplier: number;
   tamingSpeedMultiplier: number;
   harvestAmountMultiplier: number;
+  difficultyOffset: number;
+  overrideOfficialDifficulty: number; // e.g. 5.0 for max level 150 wild dinos
+  dayTimeSpeedScale: number;
+  nightTimeSpeedScale: number;
+  autoSavePeriodMinutes: number;
+
+  // General Rates & XP Multipliers (Game.ini [/script/shootergame.shootergamemode])
+  harvestHealthMultiplier: number;
+  killXPMultiplier: number;
+  harvestXPMultiplier: number;
+  craftXPMultiplier: number;
+  genericXPMultiplier: number;
+  specialXPMultiplier: number;
+
+  // Breeding & Maturation (Game.ini [/script/shootergame.shootergamemode])
   matingIntervalMultiplier: number;
+  matingSpeedMultiplier: number;
   eggHatchSpeedMultiplier: number;
   babyMatureSpeedMultiplier: number;
-  
-  // Player Settings
+  babyFoodConsumptionSpeedMultiplier: number;
+  babyCuddleIntervalMultiplier: number;
+  babyCuddleGracePeriodMultiplier: number;
+  babyCuddleLoseImprintQualitySpeedMultiplier: number;
+  babyImprintingStatScaleMultiplier: number;
+  bAllowAnyoneBabyImprintCuddle: boolean;
+  bDisableImprintDinoBuff: boolean;
+
+  // Player Settings (GameUserSettings.ini & Game.ini)
+  bServerPVE: boolean;
   bAllowThirdPersonPlayer: boolean;
   bShowFloatingDamageText: boolean;
-  bAllowFlyerCarryPvE: boolean;
-  bDisableStructurePlacementCollision: boolean;
-  bServerPVE: boolean;
-
-  // Automation Settings
-  autoUpdateEnabled: boolean;
-  autoUpdateFrequency: number; // in minutes
-  scheduledRestartEnabled: boolean;
-  scheduledRestartTime: string; // HH:MM format
-  updateOnRestart: boolean;
-  restartAnnouncementMinutes: number; // New: Lead time for restart announcements
-
-  // New Detailed Settings
-  // Player
-  playerCharacterWaterDrainMultiplier: number;
-  playerCharacterFoodDrainMultiplier: number;
   bServerCrosshair: boolean;
   bShowMapPlayerLocation: boolean;
   bGlobalVoiceChat: boolean;
   bProximityChat: boolean;
+  playerCharacterWaterDrainMultiplier: number;
+  playerCharacterFoodDrainMultiplier: number;
+  playerCharacterStaminaDrainMultiplier: number;
+  playerCharacterHealthRecoveryMultiplier: number;
+  bAllowSpeedLeveling: boolean; // ASA setting: allow leveling movement speed on player & dinos
+  bUseCorpseLocator: boolean; // Green beacon light on corpse
+  bAllowUnlimitedRespecs: boolean; // Unlimited Mindwipe Tonics
+  bAutoUnlockAllEngrams: boolean; // Game.ini bAutoUnlockAllEngrams=True / bAutoUnlockEngrams=True (Auto unlocks all engrams as player levels up)
 
-  // Dino
+  // Dino Settings (GameUserSettings.ini & Game.ini)
+  bAllowFlyerCarryPvE: boolean;
+  bAllowFlyingStaminaRecovery: boolean;
+  bAllowFlyerSpeedLeveling: boolean; // ASA setting: allow leveling flyer movement speed
+  bForceAllowCaveFlyers: boolean; // ForceAllowCaveFlyers=True (Allows flyer dinos to be ridden inside caves)
+  bForceCanRideFliers: boolean; // Forces flyer riding on maps/areas like Genesis & caves
   dinoCharacterFoodDrainMultiplier: number;
   dinoCharacterStaminaDrainMultiplier: number;
   dinoCharacterHealthRecoveryMultiplier: number;
-  bAllowAnyoneBabyImprintCuddle: boolean;
-  bAllowFlyingStaminaRecovery: boolean;
-  bDisableImprintDinoBuff: boolean;
   tamedDinoDamageMultiplier: number;
   tamedDinoResistanceMultiplier: number;
+  layEggIntervalMultiplier: number;
+  poopIntervalMultiplier: number;
 
-  // World & Server
-  difficultyOffset: number;
-  nightTimeSpeedScale: number;
-  harvestHealthMultiplier: number;
-  autoSavePeriodMinutes: number;
-  bDisableFriendlyFire: boolean;
-  itemSpoilingTimeMultiplier: number;
-
-  // Structure
-  bAllowCaveBuildingPvE: boolean;
-  bAlwaysAllowStructurePickup: boolean;
+  // World, Spoil & Decomposition (Game.ini)
+  itemSpoilingTimeMultiplier: number; // GlobalSpoilingTimeMultiplier
   fuelConsumptionIntervalMultiplier: number;
+  itemDecompositionTimeMultiplier: number; // GlobalItemDecompositionTimeMultiplier
+  corpseDecompositionTimeMultiplier: number; // GlobalCorpseDecompositionTimeMultiplier
+  cropGrowthSpeedMultiplier: number;
+  cropDecaySpeedMultiplier: number;
 
-  // Transfers
+  // Structure & Building Settings (GameUserSettings.ini & Game.ini)
+  bDisableStructurePlacementCollision: boolean;
+  bAllowCaveBuildingPvE: boolean;
+  bPvEAllowStructuresAtSupplyDrops: boolean;
+  bAlwaysAllowStructurePickup: boolean;
+  structurePickupTimeAfterPlacement: number; // in seconds
+  bDisableStructureDecayPvE: boolean;
+  bDisableDinoDecayPvE: boolean;
+  bDisableFriendlyFire: boolean;
+  bPvEDisableFriendlyFire: boolean;
+  bPassiveDefensesDamageRiderlessImprintedDino: boolean;
+  maxNumberOfPlayersInTribe: number;
+
+  // Tribute & Transfer Settings (GameUserSettings.ini [ServerSettings])
   bNoTributeDownloads: boolean;
   bPreventDownloadSurvivors: boolean;
   bPreventDownloadItems: boolean;
   bPreventDownloadDinos: boolean;
+
+  // Custom INI Lines & Dino Spawn Entries
+  npcSpawnEntries?: NpcSpawnEntry[];
+  customGameIni?: string; // Custom lines appended into Game.ini [/script/shootergame.shootergamemode]
+  customGameUserSettingsIni?: string; // Custom lines appended into GameUserSettings.ini [ServerSettings]
+  customCommandLineArgs?: string; // Custom launch parameters passed to ArkAscendedServer.exe upon server start
+
+  // CPU Affinity & Process Optimization
+  bEnableCpuAffinity?: boolean; // Enable CPU core affinity constraint
+  cpuAffinityCores?: number[];  // Specific logical core indices selected (e.g. [0, 1, 2, 3])
+  cpuAffinityMask?: string;     // Hex affinity mask string (e.g. "F", "0xF", "FF")
+
+  // Automation Settings
+  launchOnAppStart?: boolean; // Automatically launch this server when the application opens
+  autoUpdateEnabled: boolean;
+  autoUpdateFrequency: number; // in minutes
+  autoInstallUpdates: boolean; // Auto update when game update is available
+  autoUpdateWaitForRestart: boolean; // Wait for next scheduled server restart vs immediate update
+  scheduledRestartEnabled: boolean;
+  scheduledRestartTime: string; // HH:MM format
+  scheduledRestartReason?: string; // Optional message/reason broadcast in chat with restart countdown
+  updateOnRestart: boolean;
+  wipeWildDinosOnRestart: boolean; // Wipe wild dinos (DestroyWildDinos/wipewilddinos) as soon as server comes up after automated restart
+  saveWorldOnStopRestart: boolean; // Automatically execute SaveWorld via RCON before stopping or restarting server
+  restartAnnouncementMinutes: number; // Lead time for restart announcements
 
   // Clustering
   bEnableClustering: boolean;
@@ -97,6 +150,9 @@ export interface ServerConfig {
   // Discord Integration
   discordWebhookUrl: string;
   discordNotificationsEnabled: boolean;
+  discordBotToken: string;
+  discordBotEnabled: boolean;
+  discordBotChannelId: string;
 }
 
 export interface ServerProfile {
@@ -194,4 +250,26 @@ export interface AnalyticsDataPoint {
   timestamp: number;
   memoryUsage: number; // in bytes
   playerCount: number;
+}
+
+export interface NpcSpawnEntry {
+  id: string;
+  name: string; // e.g. "Griffin"
+  containerClass: string; // e.g. "DinoSpawnEntries_ChalkHills_C" or "DinoSpawnEntriesMountain_C"
+  npcClass: string; // e.g. "Griffin_Character_BP_C"
+  entryWeight: number; // e.g. 1.0
+  maxPercentage: number; // e.g. 0.2
+  enabled: boolean;
+  rawOverride?: string; // Optional custom raw INI line
+}
+
+export interface OfficialServerStatus {
+  raw: string;
+  statusText: string;
+  version: string | null;
+  isOnline: boolean;
+  statusType: 'online' | 'degraded' | 'offline' | 'unknown';
+  color?: string;
+  lastChecked: Date;
+  error?: string | null;
 }
