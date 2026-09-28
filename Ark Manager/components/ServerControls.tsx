@@ -1,8 +1,6 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { ServerStatus, ServerProfile } from '../types';
-import { PlayIcon, StopIcon, UpdateIcon, InstallIcon, RestartIcon, ClockIcon, ServerIcon, UsersIcon } from './icons';
+import { PlayIcon, StopIcon, UpdateIcon, InstallIcon, RestartIcon, ClockIcon, ServerIcon, UsersIcon, AlertTriangleIcon } from './icons';
 
 interface ServerControlsProps {
   profile: ServerProfile | null;
@@ -87,7 +85,6 @@ const ServerControls: React.FC<ServerControlsProps> = ({
     }
   }, [profile?.uptime, status]);
 
-  // Countdown effect for active shutdown timer
   useEffect(() => {
     if (activeShutdownEndTime) {
         const interval = setInterval(() => {
@@ -107,7 +104,6 @@ const ServerControls: React.FC<ServerControlsProps> = ({
     }
   }, [activeShutdownEndTime]);
 
-  // Countdown effect for active restart timer
   useEffect(() => {
     if (activeRestartEndTime) {
         const interval = setInterval(() => {
@@ -128,6 +124,7 @@ const ServerControls: React.FC<ServerControlsProps> = ({
   }, [activeRestartEndTime]);
 
   const rconEnabled = profile?.config.bEnableRcon ?? false;
+  const isMapMissing = profile?.config.map === 'SELECT_MAP';
 
   return (
     <div className="p-6 bg-gray-800/50 backdrop-blur-md rounded-lg shadow-lg border border-gray-700 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
@@ -172,17 +169,21 @@ const ServerControls: React.FC<ServerControlsProps> = ({
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
         {status === ServerStatus.NotInstalled ? (
-           <button
-             onClick={onInstall}
-             className="flex items-center justify-center px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-md transition-colors duration-200 shadow-md"
-           >
-             <InstallIcon className="w-5 h-5 mr-2" />
-             Install Server
-           </button>
+           <div className="flex items-center space-x-3">
+             {isMapMissing && <p className="text-xs text-yellow-500 animate-pulse flex items-center"><AlertTriangleIcon className="w-4 h-4 mr-1" /> Select a Map first</p>}
+             <button
+               onClick={() => onInstall()}
+               disabled={isMapMissing || isActionInProgress}
+               className="flex items-center justify-center px-6 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold rounded-md transition-all duration-200 shadow-lg shadow-cyan-500/20 transform hover:scale-105 active:scale-95"
+             >
+               <InstallIcon className="w-5 h-5 mr-2" />
+               Install Server
+             </button>
+           </div>
         ) : (
           <>
             <button
-              onClick={onStart}
+              onClick={() => onStart()}
               disabled={status === ServerStatus.Running || status === ServerStatus.Starting || isActionInProgress}
               className="flex items-center justify-center px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-md transition-colors duration-200 shadow-md disabled:shadow-none"
             >
@@ -190,7 +191,6 @@ const ServerControls: React.FC<ServerControlsProps> = ({
               Start
             </button>
             
-            {/* SHUTDOWN GROUP */}
             {activeShutdownEndTime ? (
                 <button
                     onClick={onCancelTimedShutdown}
@@ -202,14 +202,13 @@ const ServerControls: React.FC<ServerControlsProps> = ({
             ) : (
                 <div className="flex shadow-md rounded-md">
                     <button
-                        onClick={onStop}
+                        onClick={() => onStop()}
                         disabled={!(status === ServerStatus.Running || status === ServerStatus.Starting) || isActionInProgress || !!activeRestartEndTime}
                         className={`flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold transition-colors duration-200 disabled:shadow-none ${status === ServerStatus.Running ? 'rounded-l-md border-r border-red-700' : 'rounded-md'}`}
                     >
                         <StopIcon className="w-5 h-5 mr-2" />
                         Stop
                     </button>
-                    {/* Split button dropdown for timed shutdown */}
                     {status === ServerStatus.Running && (
                         <button
                             onClick={onOpenTimedShutdown}
@@ -223,7 +222,6 @@ const ServerControls: React.FC<ServerControlsProps> = ({
                 </div>
             )}
 
-            {/* RESTART GROUP */}
             {activeRestartEndTime ? (
                 <button
                     onClick={onCancelTimedRestart}
@@ -235,7 +233,7 @@ const ServerControls: React.FC<ServerControlsProps> = ({
             ) : (
                 <div className="flex shadow-md rounded-md">
                     <button
-                        onClick={onRestart}
+                        onClick={() => onRestart()}
                         disabled={status !== ServerStatus.Running || isActionInProgress || !!activeShutdownEndTime}
                         className={`flex items-center justify-center px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold transition-colors duration-200 disabled:shadow-none ${status === ServerStatus.Running ? 'rounded-l-md border-r border-yellow-700' : 'rounded-md'}`}
                     >
@@ -256,7 +254,7 @@ const ServerControls: React.FC<ServerControlsProps> = ({
             )}
 
             <button
-              onClick={onUpdate}
+              onClick={() => onUpdate()}
               disabled={status === ServerStatus.Running || status === ServerStatus.Starting || isActionInProgress}
               className="flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-md transition-colors duration-200 shadow-md disabled:shadow-none"
             >

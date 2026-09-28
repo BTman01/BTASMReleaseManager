@@ -161,17 +161,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.3.0'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.5.0'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v1.3.0 (Steam & Diagnostics Update)</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400">
-                            <li><strong>Steam Path Intelligence:</strong> The manager now automatically scans for server files in both standard and nested SteamCMD structures (e.g., inside <code>steamapps/common/...</code>).</li>
-                            <li><strong>RCON Diagnostics:</strong> Added a troubleshooting suite in Player Management to help identify why RCON commands might be failing.</li>
-                            <li><strong>Build Manifest Fixes:</strong> Improved reliability when detecting Build IDs and comparing local vs. remote server versions.</li>
-                            <li><strong>Analytics Dashboard:</strong> Visual charts for tracking memory usage and player population over time for each profile.</li>
+                        <p className="font-semibold text-gray-200">v1.5.0 (Automation, Dino Wipe, World Persistence & Broadcast Reasons)</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
+                            <li><strong>Automated Restart Wild Dino Wipe:</strong> Added a checkbox in the Automated Restarts section to automatically execute the <code className="text-cyan-300 font-mono text-xs">DestroyWildDinos</code> / <code className="text-cyan-300 font-mono text-xs">wipewilddinos</code> command via RCON as soon as the server comes online following an automated scheduled restart.</li>
+                            <li><strong>Pre-Shutdown & Pre-Restart SaveWorld:</strong> Added a persistent server configuration setting and modal checkbox to automatically execute <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> via RCON before any server stop or restart occurs, ensuring world state, player inventories, and tamed dinos are saved to disk.</li>
+                            <li><strong>Custom Broadcast Reasons in Timed Operations:</strong> Added a custom reason / announcement field to both Timed Shutdown and Timed Restart modals with quick-select presets (Maintenance, Applying Updates, Daily Reboot, Fixing Lag) and a real-time ServerChat announcement preview.</li>
+                            <li><strong>Full ServerChat Announcement Integration:</strong> Custom reasons are now broadcast to all online players in ServerChat at countdown initiation, during all intermediate checkpoint warnings (15m, 10m, 5m, 1m, 30s, etc.), and upon final shutdown/restart execution.</li>
+                            <li><strong>Scheduled Restart Announcement Reason:</strong> Added an optional custom reason/message field under Scheduled Restarts that is broadcast during automated daily restart countdowns.</li>
+                            <li><strong>Timed Modal SaveWorld Toggle:</strong> Added an interactive "Save world before shutdown/restart" toggle directly in the timer confirmation dialogs.</li>
+                            <li><strong>Enhanced RCON Reliability:</strong> Integrated automated retries and socket readiness delays for post-restart commands, with intelligent debouncing to avoid redundant back-to-back saves.</li>
                         </ul>
                     </div>
                 </div>
@@ -195,6 +198,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.4.0 (Robust Pathing & Configuration Synchronization)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Seamless Path Resolution:</strong> Added intelligent root directory and <code>/server/</code> subdirectory normalization to eliminate nested pathing collisions during server launches and Steam updates.</li>
+                                    <li><strong>Direct INI Synchronization:</strong> Streamlined configuration saving directly to active <code>GameUserSettings.ini</code> and <code>Game.ini</code> files with automatic hierarchy discovery.</li>
+                                    <li><strong>Parameter Normalization:</strong> Enhanced backend parameter passing across all commands (start, update, mod/map installation, and backups).</li>
+                                    <li><strong>Verification & Diagnostics:</strong> Automated server executable detection and real-time validation across both legacy and modern directory structures.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.3.0 (Steam & Diagnostics Update)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400">
+                                    <li><strong>Steam Path Intelligence:</strong> The manager now automatically scans for server files in both standard and nested SteamCMD structures (e.g., inside <code>steamapps/common/...</code>).</li>
+                                    <li><strong>RCON Diagnostics:</strong> Added a troubleshooting suite in Player Management to help identify why RCON commands might be failing.</li>
+                                    <li><strong>Build Manifest Fixes:</strong> Improved reliability when detecting Build IDs and comparing local vs. remote server versions.</li>
+                                    <li><strong>Analytics Dashboard:</strong> Visual charts for tracking memory usage and player population over time for each profile.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v1.1.0 (Advanced Analytics)</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400">
@@ -262,13 +283,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                                     <li><strong>Security Maintenance:</strong> Updated cryptographic signing keys to ensure secure and verified updates via GitHub Releases.</li>
                                 </ul>
                             </div>
-                             <div>
+                            <div>
                                 <p className="font-semibold text-gray-200">v0.1.31</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400">
                                     <li><strong>Security Maintenance:</strong> Internal updates to key synchronization to resolve update verification issues.</li>
                                 </ul>
                             </div>
-                             <div>
+                            <div>
                                 <p className="font-semibold text-gray-200">v0.1.30</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400">
                                     <li><strong>GitHub Releases Integration:</strong> Successfully migrated the update infrastructure to GitHub Releases. The app now downloads signed updates directly from the official repository.</li>

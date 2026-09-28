@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ServerProfile, ServerStatus } from '../types';
-import { EditIcon, TrashIcon, SaveIcon, CancelIcon } from './icons';
+import { EditIcon, TrashIcon, SaveIcon, CancelIcon, ZapIcon, RefreshCwIcon } from './icons';
 
 interface ProfileManagerProps {
   profiles: ServerProfile[];
@@ -12,7 +12,40 @@ interface ProfileManagerProps {
   isActionInProgress: boolean;
 }
 
-const ProfileManager: React.FC<ProfileManagerProps> = ({ profiles, activeProfileId, onSelectProfile, onCreateProfile, onUpdateProfileName, onDeleteProfile, isActionInProgress }) => {
+const ProfileStatusDot: React.FC<{ status: ServerStatus; pid?: number }> = ({ status, pid }) => {
+  if (status === ServerStatus.Running) {
+    return (
+      <span className="relative flex h-2.5 w-2.5 mr-1.5 shrink-0" title={pid ? `Server Running (PID: ${pid})` : "Server Running"}>
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      </span>
+    );
+  }
+  if (status === ServerStatus.Starting || status === ServerStatus.Restarting || status === ServerStatus.Updating) {
+    return (
+      <span className="relative flex h-2.5 w-2.5 mr-1.5 shrink-0" title={`Server ${status}`}>
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+      </span>
+    );
+  }
+  if (status === ServerStatus.Error) {
+    return (
+      <span className="inline-flex rounded-full h-2 w-2 mr-1.5 shrink-0 bg-red-500" title="Server Error"></span>
+    );
+  }
+  return null;
+};
+
+const ProfileManager: React.FC<ProfileManagerProps> = ({ 
+  profiles, 
+  activeProfileId, 
+  onSelectProfile, 
+  onCreateProfile, 
+  onUpdateProfileName, 
+  onDeleteProfile,
+  isActionInProgress 
+}) => {
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   
@@ -63,8 +96,8 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ profiles, activeProfile
 
   return (
     <div className="bg-gray-800/50 backdrop-blur-md rounded-lg p-4 border border-gray-700">
-      <div className="flex items-center justify-between space-x-2">
-        <div className="flex-grow flex items-center space-x-1 flex-wrap">
+      <div className="flex items-center justify-between space-x-2 flex-wrap gap-2">
+        <div className="flex-grow flex items-center space-x-2 flex-wrap gap-y-2">
           {profiles.map(profile => (
             <div
                 key={profile.id}
@@ -100,7 +133,7 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ profiles, activeProfile
                             activeProfileId === profile.id
                                 ? 'bg-cyan-600 text-white shadow-md'
                                 : 'bg-gray-700/50 hover:bg-gray-700 text-gray-300'
-                        } ${(isActionInProgress || !!editingProfileId) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${profile.status === ServerStatus.Running ? 'animate-pulse-glow' : ''}`}
+                        } ${(isActionInProgress || !!editingProfileId) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${profile.status === ServerStatus.Running ? 'ring-1 ring-emerald-400/50 shadow-emerald-500/20' : ''}`}
                     >
                         {hoveredProfileId === profile.id ? (
                             <div className="flex items-center justify-center space-x-4 animate-fade-in">
@@ -119,20 +152,30 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ profiles, activeProfile
                                 </button>
                             </div>
                         ) : (
-                            <span className="truncate">{profile.profileName}</span>
+                            <div className="flex items-center space-x-1.5 truncate max-w-full">
+                                <ProfileStatusDot status={profile.status} pid={profile.pid} />
+                                {profile.config?.launchOnAppStart && (
+                                    <span title="Launches automatically on application start">
+                                        <ZapIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                    </span>
+                                )}
+                                <span className="truncate">{profile.profileName}</span>
+                            </div>
                         )}
                     </div>
                 )}
             </div>
           ))}
         </div>
-        <button
-          onClick={onCreateProfile}
-          disabled={isActionInProgress || !!editingProfileId}
-          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-md transition-colors duration-200 shadow-md text-sm disabled:bg-gray-600 disabled:cursor-not-allowed whitespace-nowrap"
-        >
-          + New Profile
-        </button>
+        <div className="flex items-center space-x-2 shrink-0">
+          <button
+            onClick={onCreateProfile}
+            disabled={isActionInProgress || !!editingProfileId}
+            className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-md transition-colors duration-200 shadow-md text-sm disabled:bg-gray-600 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            + New Profile
+          </button>
+        </div>
       </div>
     </div>
   );

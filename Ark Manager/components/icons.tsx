@@ -261,3 +261,187 @@ export const ChartBarIcon: React.FC<{ className?: string }> = ({ className }) =>
     <path d="M6 20v-4"></path>
   </svg>
 );
+
+export const GlobeIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="2" y1="12" x2="22" y2="12"></line>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+  </svg>
+);
+
+export const RefreshCwIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+    <path d="M21 3v5h-5"></path>
+    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+    <path d="M3 21v-5h5"></path>
+  </svg>
+);
+
+export const ArkSpecimenImplantLogo: React.FC<{ className?: string }> = ({ className = "w-10 h-10" }) => (
+  <svg
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={`inline-block ${className}`}
+  >
+    <defs>
+      {/* Outer Tek Glow */}
+      <filter id="tekGlow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="2" result="blur" />
+        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      </filter>
+      {/* Core Plasma Gradient */}
+      <linearGradient id="tekCoreGrad" x1="32" y1="4" x2="32" y2="60" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#A5F3FC" />
+        <stop offset="35%" stopColor="#22D3EE" />
+        <stop offset="70%" stopColor="#06B6D4" />
+        <stop offset="100%" stopColor="#0891B2" />
+      </linearGradient>
+      {/* Metallic Prism Facet Gradient Left */}
+      <linearGradient id="facetLeft" x1="10" y1="10" x2="32" y2="54" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#1E293B" stopOpacity="0.9" />
+        <stop offset="50%" stopColor="#0F172A" stopOpacity="0.95" />
+        <stop offset="100%" stopColor="#020617" stopOpacity="1" />
+      </linearGradient>
+      {/* Metallic Prism Facet Gradient Right */}
+      <linearGradient id="facetRight" x1="54" y1="10" x2="32" y2="54" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#334155" stopOpacity="0.85" />
+        <stop offset="50%" stopColor="#1E293B" stopOpacity="0.95" />
+        <stop offset="100%" stopColor="#0F172A" stopOpacity="1" />
+      </linearGradient>
+      {/* Radiant Accent Lines */}
+      <linearGradient id="tekAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#67E8F9" />
+        <stop offset="100%" stopColor="#34D399" />
+      </linearGradient>
+    </defs>
+
+    {/* Background Specimen Implant Aura */}
+    <polygon
+      points="32,3 56,22 56,42 32,61 8,42 8,22"
+      fill="url(#tekCoreGrad)"
+      opacity="0.15"
+      filter="url(#tekGlow)"
+    />
+
+    {/* Outer Faceted Armor Shell - Left */}
+    <polygon
+      points="32,5 8,23 18,32 32,19"
+      fill="url(#facetLeft)"
+      stroke="#22D3EE"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+      opacity="0.95"
+    />
+    {/* Outer Faceted Armor Shell - Right */}
+    <polygon
+      points="32,5 56,23 46,32 32,19"
+      fill="url(#facetRight)"
+      stroke="#22D3EE"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+      opacity="0.95"
+    />
+
+    {/* Lower Armor Legs (ARK Specimen Diamond Wings) */}
+    <polygon
+      points="8,23 8,41 22,35 18,32"
+      fill="url(#facetLeft)"
+      stroke="#06B6D4"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+    />
+    <polygon
+      points="56,23 56,41 42,35 46,32"
+      fill="url(#facetRight)"
+      stroke="#06B6D4"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+    />
+
+    {/* Bottom Converging Tek Point */}
+    <polygon
+      points="8,41 32,59 22,35"
+      fill="url(#facetLeft)"
+      stroke="#0891B2"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+    />
+    <polygon
+      points="56,41 32,59 42,35"
+      fill="url(#facetRight)"
+      stroke="#0891B2"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+    />
+
+    {/* Central Floating Radiant Tek Shard (The Ascended Specimen Core) */}
+    <polygon
+      points="32,11 41,27 32,49 23,27"
+      fill="url(#tekCoreGrad)"
+      filter="url(#tekGlow)"
+      stroke="#E0F2FE"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+
+    {/* Inner Core Diamond Shimmer */}
+    <polygon
+      points="32,18 37,28 32,41 27,28"
+      fill="#FFFFFF"
+      opacity="0.8"
+    />
+
+    {/* Tek Circuit Inscription Lines (Futuristic Ascended Detail) */}
+    <path
+      d="M32 5L32 11M32 49L32 59M18 32L23 27M46 32L41 27"
+      stroke="#67E8F9"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    <circle cx="32" cy="11" r="1.5" fill="#E0F2FE" />
+    <circle cx="32" cy="49" r="1.5" fill="#22D3EE" />
+    <circle cx="18" cy="32" r="1" fill="#38BDF8" />
+    <circle cx="46" cy="32" r="1" fill="#38BDF8" />
+
+    {/* ARK 'A' Apex Crossbar Energy Arc */}
+    <path
+      d="M23 37 Q32 35 41 37"
+      stroke="url(#tekAccent)"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+export const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+  </svg>
+);
+
+export const ZapIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+  </svg>
+);
+
+export const CpuIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+    <rect x="9" y="9" width="6" height="6"></rect>
+    <path d="M9 1v3"></path>
+    <path d="M15 1v3"></path>
+    <path d="M9 20v3"></path>
+    <path d="M15 20v3"></path>
+    <path d="M20 9h3"></path>
+    <path d="M20 14h3"></path>
+    <path d="M1 9h3"></path>
+    <path d="M1 14h3"></path>
+  </svg>
+);
+
+

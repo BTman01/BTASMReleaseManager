@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { CogIcon, BellIcon, WindowMinimizeIcon, WindowMaximizeIcon, WindowRestoreIcon, WindowCloseIcon, DownloadCloudIcon } from './icons';
+import { CogIcon, BellIcon, WindowMinimizeIcon, WindowMaximizeIcon, WindowRestoreIcon, WindowCloseIcon, DownloadCloudIcon, ArkSpecimenImplantLogo } from './icons';
+import OfficialServerStatusBadge from './OfficialServerStatusBadge';
 
 interface HeaderProps {
   onOpenSettings: () => void;
@@ -71,21 +72,21 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNoti
         <div className="flex h-full">
             <button 
                 onClick={handleMinimize}
-                className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 aria-label="Minimize"
             >
                 <WindowMinimizeIcon className="w-3.5 h-3.5" />
             </button>
             <button 
                 onClick={handleMaximizeToggle}
-                className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 aria-label={isMaximized ? "Restore" : "Maximize"}
             >
                 {isMaximized ? <WindowRestoreIcon className="w-3.5 h-3.5" /> : <WindowMaximizeIcon className="w-3.5 h-3.5" />}
             </button>
             <button 
                 onClick={handleClose}
-                className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-600 transition-colors"
+                className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
                 aria-label="Close"
             >
                 <WindowCloseIcon className="w-3.5 h-3.5" />
@@ -93,20 +94,51 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNoti
         </div>
       </div>
 
-      {/* Row 2: Main App Header (Logo, Title, App Tools) */}
-      <header className="bg-black/30 backdrop-blur-sm p-3 shadow-lg shadow-cyan-500/10 flex items-center justify-between">
-          <div className="flex items-center space-x-3 pl-2">
-              <svg className="w-8 h-8 text-cyan-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0 3.517-1.009 6.789-2.75 9.566-1.74 2.777-2.75 5.434-2.75 5.434h11c0 0-1.01-2.657-2.75-5.434C13.009 17.789 12 14.517 12 11z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0-3.517 1.009-6.789 2.75-9.566C16.491-1.343 17.5.313 17.5.313h-11c0 0 1.01 2.657 2.75 5.434C10.991 4.211 12 7.483 12 11z"></path></svg>
-              <h1 className="text-xl font-bold text-gray-100 tracking-wider pointer-events-none">
-                Ark Ascended Server Manager
-              </h1>
+      {/* Row 2: Main App Header (Logo, Title, Official Status, App Tools) */}
+      <header className="bg-black/40 backdrop-blur-md p-3 shadow-lg shadow-cyan-500/10 flex items-center justify-between gap-3 border-b border-white/5">
+          {/* Enhanced ARK Specimen Implant Logo & Brand Title */}
+          <div className="flex items-center space-x-3.5 pl-2 flex-shrink-0 group">
+              <div className="relative flex items-center justify-center p-1 rounded-xl bg-gradient-to-br from-cyan-950/70 to-slate-950/90 border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.25)] group-hover:border-cyan-400/70 group-hover:shadow-[0_0_22px_rgba(34,211,238,0.45)] transition-all duration-300">
+                  <ArkSpecimenImplantLogo className="w-8 h-8 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
+                  </span>
+              </div>
+
+              <div className="flex flex-col select-none pointer-events-none">
+                  <div className="flex items-baseline space-x-1.5">
+                      <span className="text-sm font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-gray-100 via-gray-200 to-gray-400 font-mono">
+                          BT&apos;s
+                      </span>
+                      <span className="text-lg font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]">
+                          ASA
+                      </span>
+                      <span className="text-sm font-extrabold uppercase tracking-wider text-gray-200 hidden sm:inline">
+                          SERVER MANAGER
+                      </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-[9px] uppercase font-mono tracking-widest text-cyan-400/80 -mt-0.5">
+                      <span className="flex items-center space-x-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block animate-pulse"></span>
+                          <span>ASCENDED EDITION</span>
+                      </span>
+                      <span className="text-gray-600 hidden md:inline">•</span>
+                      <span className="text-gray-400 hidden md:inline">CONTROL HUB</span>
+                  </div>
+              </div>
           </div>
 
-          <div className="flex items-center space-x-2 mr-2">
+          {/* Center Official Status & Game Version */}
+          <div className="flex items-center justify-center flex-1 max-w-md">
+            <OfficialServerStatusBadge />
+          </div>
+
+          <div className="flex items-center space-x-2 mr-2 flex-shrink-0">
                 {pendingAppUpdate && (
                     <button
                         onClick={onInstallAppUpdate}
-                        className="relative p-2 text-cyan-400 hover:text-white hover:bg-cyan-600/30 rounded-full transition-colors flex items-center space-x-2 group"
+                        className="relative p-2 text-cyan-400 hover:text-white hover:bg-cyan-600/30 rounded-full transition-colors flex items-center space-x-2 group cursor-pointer"
                         title={`Update Available: v${pendingAppUpdate.version}`}
                     >
                         <span className="relative flex h-3 w-3">
@@ -119,7 +151,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNoti
                 )}
                 <button
                     onClick={onToggleNotifications}
-                    className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-full transition-colors"
+                    className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-full transition-colors cursor-pointer"
                     aria-label="Open notifications"
                 >
                     <BellIcon className="w-6 h-6" />
@@ -129,7 +161,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNoti
                 </button>
                 <button 
                     onClick={onOpenSettings}
-                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-full transition-colors"
+                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-full transition-colors cursor-pointer"
                     aria-label="Open application settings"
                 >
                     <CogIcon className="w-6 h-6" />
@@ -141,3 +173,4 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, hasUnread, onToggleNoti
 };
 
 export default Header;
+
