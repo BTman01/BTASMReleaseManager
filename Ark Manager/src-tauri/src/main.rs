@@ -1,5 +1,8 @@
+
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod discord_bot; // <-- Added to import the discord bot module
 
 use chrono::Local;
 use local_ip_address;
@@ -24,6 +27,9 @@ use tokio_util::sync::CancellationToken;
 use walkdir::WalkDir;
 use zip::write::{FileOptions, ZipWriter};
 use zip::ZipArchive;
+
+// --- CONSTANTS ---
+const GLOBAL_STEAMCMD_DIR: &str = r"C:\BTASM\steamcmd";
 
 // --- STATE MANAGEMENT ---
 
@@ -87,6 +93,18 @@ fn get_backup_dir(install_path: &str) -> PathBuf {
     PathBuf::from(install_path).join("ManagerBackups")
 }
 
+fn get_game_install_dir(install_path: &str) -> PathBuf {
+    PathBuf::from(install_path).join("server")
+}
+
+fn get_global_steamcmd_path() -> PathBuf {
+    PathBuf::from(GLOBAL_STEAMCMD_DIR)
+}
+
+fn get_global_steamcmd_exe() -> PathBuf {
+    get_global_steamcmd_path().join("steamcmd.exe")
+}
+
 async fn download_file(url: &str, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let response = reqwest::get(url).await?;
     let mut file = std::fs::File::create(path)?;
@@ -121,24 +139,31 @@ fn unzip_file(zip_path: &Path, dest_dir: &Path) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-async fn ensure_steamcmd(
-    window: &Window,
-    log_event: &str,
-    steamcmd_dir: &Path,
-    steamcmd_exe: &Path,
-) -> Result<(), String> {
+async fn ensure_global_steamcmd(window: &Window, log_event: &str) -> Result<PathBuf, String> {
+    let steamcmd_dir = get_global_steamcmd_path();
+    let steamcmd_exe = get_global_steamcmd_exe();
+
+    // Check if the directory exists first, create if not
+    if !steamcmd_dir.exists() {
+        log_to_frontend(
+            window,
+            log_event,
+            &format!("  > Creating global SteamCMD directory: {:?}", steamcmd_dir),
+        );
+        if let Err(e) = std::fs::create_dir_all(&steamcmd_dir) {
+            return Err(format!(
+                "❌ ERROR: Failed to create global steamcmd directory: {}",
+                e
+            ));
+        }
+    }
+
     if !steamcmd_exe.exists() {
         log_to_frontend(
             window,
             log_event,
-            "  > steamcmd.exe not found. Setting up...",
+            &format!("  > Global SteamCMD not found at {:?}. Downloading...", steamcmd_dir),
         );
-        if let Err(e) = std::fs::create_dir_all(steamcmd_dir) {
-            return Err(format!(
-                "❌ ERROR: Failed to create steamcmd directory: {}",
-                e
-            ));
-        }
 
         let steamcmd_zip_path = steamcmd_dir.join("steamcmd.zip");
         let url = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
@@ -148,7 +173,7 @@ async fn ensure_steamcmd(
         }
         log_to_frontend(window, log_event, "  > Download complete. Unzipping...");
 
-        if let Err(e) = unzip_file(&steamcmd_zip_path, steamcmd_dir) {
+        if let Err(e) = unzip_file(&steamcmd_zip_path, &steamcmd_dir) {
             return Err(format!("❌ ERROR: Failed to unzip steamcmd.zip: {}", e));
         }
         log_to_frontend(
@@ -158,7 +183,8 @@ async fn ensure_steamcmd(
         );
         let _ = std::fs::remove_file(&steamcmd_zip_path);
     }
-    Ok(())
+    
+    Ok(steamcmd_exe)
 }
 
 // --- TAURI COMMANDS ---
@@ -179,7 +205,7 @@ fn get_local_ips() -> Result<Vec<String>, String> {
 }
 
 static STARTUP_MEMORY_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\((\d+\.?\d*)\s*GB\s+Mem\)").unwrap());
+    Lazy::new(|| Regex::new(r"\(\d+\.?\d*\s*GB\s+Mem\)").unwrap());
 static MEMORY_LOGMEMORY_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"LogMemory:.*?Current/Peak\s*([\d.]+)\s*MB").unwrap());
 static PLAYER_EVENT_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -190,7 +216,7 @@ static PLAYER_EVENT_REGEX: Lazy<Regex> = Lazy::new(|| {
 async fn start_ark_server(
     profile_id: String,
     install_path: String,
-    server_path: String,
+    _server_path: String, // Prefix with underscore as it is unused but kept for signature
     args: Vec<String>,
     rcon_ip: String,
     rcon_port: u16,
@@ -206,8 +232,20 @@ async fn start_ark_server(
         }
     }
 
-    // SPAWN DIRECTLY (No "cmd /C") to get the actual game process ID
-    let mut child = Command::new(&server_path)
+    // Expecting files in /server/ShooterGame/...
+    let game_dir = get_game_install_dir(&install_path);
+    let executable_path = game_dir
+        .join("ShooterGame")
+        .join("Binaries")
+        .join("Win64")
+        .join("ArkAscendedServer.exe");
+
+    if !executable_path.exists() {
+        return Err(format!("Server executable not found at: {:?}", executable_path));
+    }
+
+    // SPAWN DIRECTLY
+    let mut child = Command::new(&executable_path)
         .args(&args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -232,32 +270,15 @@ async fn start_ark_server(
 
     let win_clone = window.clone();
     let profile_id_clone = profile_id.clone();
-    let log_file_path_new = PathBuf::from(&install_path)
-        .join("steamcmd")
-        .join("steamapps")
-        .join("common")
-        .join("ARK Survival Ascended Dedicated Server")
+    
+    // Standard Log Path for Ark Ascended in /server/...
+    let log_file_path = game_dir
         .join("ShooterGame")
         .join("Saved")
         .join("Logs")
         .join("ShooterGame.log");
 
-    let log_file_path_old = PathBuf::from(&install_path)
-        .join("ShooterGame")
-        .join("Saved")
-        .join("Logs")
-        .join("ShooterGame.log");
-
-    // Determine which structure is in use by checking the server_path that was passed in
-    let log_file_path = if server_path.contains("steamapps\\common\\ARK Survival Ascended Dedicated Server") {
-        println!("Detected NEW server structure, using new log path");
-        log_file_path_new
-    } else {
-        println!("Detected OLD server structure, using old log path");
-        log_file_path_old
-    };
-
-    println!("Log file path: {:?}", log_file_path);
+    println!("Monitoring Log file path: {:?}", log_file_path);
 
     let cancellation_token_clone = cancellation_token.clone();
     tokio::spawn(async move {
@@ -345,7 +366,6 @@ async fn start_ark_server(
                                         if let Some(mem_str) = caps.get(1) {
                                             if let Ok(mem_gb) = mem_str.as_str().parse::<f64>() {
                                                 let mem_mb = mem_gb * 1024.0;
-                                                println!("[LOG PARSER] Parsed startup memory: {}GB = {}MB", mem_gb, mem_mb);
                                                 let _ = win_clone.emit("log-stats-update", serde_json::json!({ 
                                                     "profile_id": profile_id_clone, 
                                                     "memoryMb": mem_mb 
@@ -354,10 +374,8 @@ async fn start_ark_server(
                                         }
                                     }
                                 } else if let Some(caps) = MEMORY_LOGMEMORY_REGEX.captures(&trimmed_line) {
-                                    // Fallback to LogMemory format if present
                                     if let Some(mem_str) = caps.get(1) {
                                         if let Ok(mem_mb) = mem_str.as_str().parse::<f64>() {
-                                            println!("[LOG PARSER] Parsed LogMemory: {}MB", mem_mb);
                                             let _ = win_clone.emit("log-stats-update", serde_json::json!({ 
                                                 "profile_id": profile_id_clone, 
                                                 "memoryMb": mem_mb 
@@ -429,8 +447,6 @@ async fn stop_ark_server(
     profile_id: String,
     processes: State<'_, ServerProcesses>,
 ) -> Result<(), String> {
-    println!("Stopping ARK server for profile: {}", profile_id);
-
     let process_info = {
         let procs = processes.0.lock().await;
         procs.get(&profile_id).cloned()
@@ -439,8 +455,7 @@ async fn stop_ark_server(
     if let Some(info) = process_info {
         #[cfg(target_os = "windows")]
         {
-            use std::process::Command as StdCommand;
-            StdCommand::new("taskkill")
+            std::process::Command::new("taskkill")
                 .args(&["/PID", &info.pid.to_string(), "/F", "/T"])
                 .output()
                 .map_err(|e| format!("Failed to stop server: {}", e))?;
@@ -448,13 +463,11 @@ async fn stop_ark_server(
 
         #[cfg(not(target_os = "windows"))]
         {
-            use std::process::Command as StdCommand;
-            StdCommand::new("kill")
+            std::process::Command::new("kill")
                 .args(&["-9", &info.pid.to_string()])
                 .output()
                 .map_err(|e| format!("Failed to stop server: {}", e))?;
         }
-        println!("Server stop signal sent successfully");
         Ok(())
     } else {
         Err("No running server found for this profile".to_string())
@@ -468,45 +481,23 @@ async fn send_rcon_command(
     processes: State<'_, ServerProcesses>,
     window: Window,
 ) -> Result<(), String> {
-    println!("=== RCON DEBUG: send_rcon_command called ===");
-    println!("Profile ID: {}", profile_id);
-    println!("Command: {}", command);
-
     let server_info = {
         let procs = processes.0.lock().await;
         procs.get(&profile_id).cloned()
     };
 
     if let Some(info) = server_info {
-        println!("Server info found for profile: {}", profile_id);
-        println!("RCON Enabled: {}", info.rcon_enabled);
-
         if !info.rcon_enabled {
-            println!("ERROR: RCON is not enabled");
             return Err("RCON is not enabled for this server profile.".into());
         }
 
         let addr = format!("{}:{}", info.rcon_ip, info.rcon_port);
         let pass = info.rcon_password.as_deref().unwrap_or_default();
 
-        println!(
-            "Connecting to: {} with password length: {}",
-            addr,
-            pass.len()
-        );
-
-        // Use rercon's Connection::open with default settings
         match Connection::open(&addr, pass, Settings::default()).await {
             Ok(mut conn) => {
-                println!("✓ RCON connection established with rercon!");
-                println!("Sending command: {}", command);
-
                 match conn.exec(&command).await {
                     Ok(response) => {
-                        println!("✓ Command executed successfully!");
-                        println!("Response length: {} bytes", response.len());
-                        println!("Response: '{}'", response);
-
                         let response_text = if response.trim().is_empty() {
                             format!("✓ Command '{}' executed successfully", command)
                         } else {
@@ -520,13 +511,9 @@ async fn send_rcon_command(
                                 "line": response_text
                             }),
                         );
-
-                        println!("=== RCON DEBUG: Success ===\n");
                         Ok(())
                     }
                     Err(e) => {
-                        println!("✗ Command execution failed: {}", e);
-
                         let error_msg = format!("❌ Command failed: {}", e);
                         let _ = window.emit(
                             "manager-log-line",
@@ -535,15 +522,11 @@ async fn send_rcon_command(
                                 "line": error_msg
                             }),
                         );
-
-                        println!("=== RCON DEBUG: Command Failed ===\n");
                         Err(format!("RCON command failed: {}", e))
                     }
                 }
             }
             Err(e) => {
-                println!("✗ RCON connection failed: {}", e);
-
                 let error_msg = format!("❌ RCON connection failed: {}", e);
                 let _ = window.emit(
                     "manager-log-line",
@@ -552,38 +535,37 @@ async fn send_rcon_command(
                         "line": error_msg
                     }),
                 );
-
-                println!("=== RCON DEBUG: Connection Failed ===\n");
                 Err(format!("RCON connection failed: {}", e))
             }
         }
     } else {
-        println!("ERROR: No server info found for profile: {}", profile_id);
         Err("Server is not running for this profile.".into())
     }
 }
 
 #[tauri::command]
 async fn update_server_files(window: Window, install_path: String) -> Result<(), String> {
-    let root_path = PathBuf::from(install_path);
-    let steamcmd_dir = root_path.join("steamcmd");
-    let steamcmd_exe = steamcmd_dir.join("steamcmd.exe");
-
-    if let Err(e) = ensure_steamcmd(&window, "update-log", &steamcmd_dir, &steamcmd_exe).await {
-        log_to_frontend(&window, "update-log", &e);
-        window
-            .emit("update-finished", &serde_json::json!({ "success": false }))
-            .unwrap();
-        return Err(e);
-    }
+    // Force usage of global SteamCMD
+    let steamcmd_exe = match ensure_global_steamcmd(&window, "update-log").await {
+        Ok(exe) => exe,
+        Err(e) => {
+            log_to_frontend(&window, "update-log", &e);
+            window.emit("update-finished", &serde_json::json!({ "success": false })).unwrap();
+            return Err(e);
+        }
+    };
+    let steamcmd_dir = get_global_steamcmd_path();
 
     log_to_frontend(
         &window,
         "update-log",
-        "✅ SteamCMD is ready. Starting server file update...",
+        &format!("✅ SteamCMD ready at {:?}. Starting update...", steamcmd_dir),
     );
 
-    let install_dir_arg = root_path.to_string_lossy().replace("\\", "/");
+    // Install into /server/ subdirectory
+    let game_install_dir = get_game_install_dir(&install_path);
+    let install_dir_arg = game_install_dir.to_string_lossy().replace("\\", "/");
+    
     let script_content = format!(
         "force_install_dir \"{}\"\nlogin anonymous\napp_update 2430930 validate\nquit\n",
         install_dir_arg
@@ -601,15 +583,7 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
 
     for attempt in 1..=MAX_RETRIES {
         if attempt > 1 {
-            log_to_frontend(
-                &window,
-                "update-log",
-                &format!(
-                    "\n⚠️ Update attempt {}/{} failed. Retrying in 2 seconds...",
-                    attempt - 1,
-                    MAX_RETRIES
-                ),
-            );
+            log_to_frontend(&window, "update-log", &format!("\n⚠️ Update attempt {}/{} failed. Retrying...", attempt - 1, MAX_RETRIES));
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
@@ -617,27 +591,34 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
         cmd.current_dir(&steamcmd_dir)
             .arg("+runscript")
             .arg(&script_path);
+        
+        // Hide window on Windows
+        #[cfg(target_os = "windows")]
+        {
+            cmd.creation_flags(0x08000000); 
+        }
+
         cmd.stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
         match cmd.spawn() {
             Ok(mut child) => {
-                let stdout = child.stdout.take().expect("Failed to capture stdout");
-                let stderr = child.stderr.take().expect("Failed to capture stderr");
+                let stdout = child.stdout.take().expect("Failed stdout");
+                let stderr = child.stderr.take().expect("Failed stderr");
 
-                let window_clone_out = window.clone();
+                let win_out = window.clone();
                 tokio::spawn(async move {
                     let mut reader = BufReader::new(stdout).lines();
                     while let Ok(Some(line)) = reader.next_line().await {
-                        log_to_frontend(&window_clone_out, "update-log", &line);
+                        log_to_frontend(&win_out, "update-log", &line);
                     }
                 });
 
-                let window_clone_err = window.clone();
+                let win_err = window.clone();
                 tokio::spawn(async move {
                     let mut reader = BufReader::new(stderr).lines();
                     while let Ok(Some(line)) = reader.next_line().await {
-                        log_to_frontend(&window_clone_err, "update-log", &line);
+                        log_to_frontend(&win_err, "update-log", &line);
                     }
                 });
 
@@ -647,64 +628,40 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
                     Ok(s) => {
                         if s.success() {
                             let _ = std::fs::remove_file(&script_path);
-                            log_to_frontend(
-                                &window,
-                                "update-log",
-                                "\n✅ Server file update completed successfully!",
-                            );
-                            window
-                                .emit("update-finished", &serde_json::json!({ "success": true }))
-                                .unwrap();
+                            log_to_frontend(&window, "update-log", "\n✅ Server file update completed successfully!");
+                            window.emit("update-finished", &serde_json::json!({ "success": true })).unwrap();
                             return Ok(());
                         } else {
                             last_error = "Process finished with non-zero exit code.".to_string();
                         }
                     }
-                    Err(e) => {
-                        last_error = e;
-                    }
+                    Err(e) => { last_error = e; }
                 }
             }
-            Err(e) => {
-                last_error = format!("Failed to start SteamCMD process: {}", e);
-            }
+            Err(e) => { last_error = format!("Failed to start SteamCMD: {}", e); }
         }
     }
 
     let _ = std::fs::remove_file(&script_path);
-    let err_msg = format!(
-        "\n❌ Server file update finished with an error after {} attempts: {}",
-        MAX_RETRIES, last_error
-    );
+    let err_msg = format!("\n❌ Update failed after {} attempts: {}", MAX_RETRIES, last_error);
     log_to_frontend(&window, "update-log", &err_msg);
-    window
-        .emit("update-finished", &serde_json::json!({ "success": false }))
-        .unwrap();
+    window.emit("update-finished", &serde_json::json!({ "success": false })).unwrap();
     Err(err_msg)
 }
 
 #[tauri::command]
 async fn update_map(window: Window, install_path: String, map_id: String) -> Result<(), String> {
-    let root_path = PathBuf::from(install_path);
-    let steamcmd_dir = root_path.join("steamcmd");
-    let steamcmd_exe = steamcmd_dir.join("steamcmd.exe");
+    let steamcmd_exe = match ensure_global_steamcmd(&window, "map-update-log").await {
+        Ok(exe) => exe,
+        Err(e) => {
+            log_to_frontend(&window, "map-update-log", &e);
+            window.emit("map-update-finished", &serde_json::json!({ "success": false })).unwrap();
+            return Err(e);
+        }
+    };
+    let steamcmd_dir = get_global_steamcmd_path();
 
-    if let Err(e) = ensure_steamcmd(&window, "map-update-log", &steamcmd_dir, &steamcmd_exe).await {
-        log_to_frontend(&window, "map-update-log", &e);
-        window
-            .emit(
-                "map-update-finished",
-                &serde_json::json!({ "success": false }),
-            )
-            .unwrap();
-        return Err(e);
-    }
-
-    log_to_frontend(
-        &window,
-        "map-update-log",
-        "✅ SteamCMD is ready. Starting map update...",
-    );
+    log_to_frontend(&window, "map-update-log", "✅ SteamCMD ready. Starting map update...");
 
     let mut map_app_ids = HashMap::new();
     map_app_ids.insert("ScorchedEarth_WP", "2430940");
@@ -717,28 +674,18 @@ async fn update_map(window: Window, install_path: String, map_id: String) -> Res
     let dlc_app_id = match map_app_ids.get(map_id.as_str()) {
         Some(id) => id,
         None => {
-            let msg = "  > Selected map is not a downloadable DLC. Nothing to do.";
-            log_to_frontend(&window, "map-update-log", msg);
-            window
-                .emit(
-                    "map-update-finished",
-                    &serde_json::json!({ "success": true }),
-                )
-                .unwrap();
+            log_to_frontend(&window, "map-update-log", "  > Selected map is not a downloadable DLC. Nothing to do.");
+            window.emit("map-update-finished", &serde_json::json!({ "success": true })).unwrap();
             return Ok(());
         }
     };
 
-    log_to_frontend(
-        &window,
-        "map-update-log",
-        &format!(
-            "  > Downloading map '{}' (App ID: {})...",
-            map_id, dlc_app_id
-        ),
-    );
+    log_to_frontend(&window, "map-update-log", &format!("  > Downloading map '{}' (App ID: {})...", map_id, dlc_app_id));
 
-    let install_dir_arg = root_path.to_string_lossy().replace("\\", "/");
+    // Install into /server/ subdirectory
+    let game_install_dir = get_game_install_dir(&install_path);
+    let install_dir_arg = game_install_dir.to_string_lossy().replace("\\", "/");
+
     let script_content = format!(
         "force_install_dir \"{}\"\nlogin anonymous\napp_update {} validate\nquit\n",
         install_dir_arg, dlc_app_id
@@ -746,10 +693,7 @@ async fn update_map(window: Window, install_path: String, map_id: String) -> Res
 
     let script_path = steamcmd_dir.join("map_update_script.txt");
     if let Err(e) = std::fs::write(&script_path, &script_content) {
-        return Err(format!(
-            "❌ ERROR: Failed to write map update script: {}",
-            e
-        ));
+        return Err(format!("❌ ERROR: Failed to write map update script: {}", e));
     }
 
     const MAX_RETRIES: u32 = 3;
@@ -757,164 +701,92 @@ async fn update_map(window: Window, install_path: String, map_id: String) -> Res
 
     for attempt in 1..=MAX_RETRIES {
         if attempt > 1 {
-            log_to_frontend(
-                &window,
-                "map-update-log",
-                &format!(
-                    "\n⚠️ Map update attempt {}/{} failed. Retrying in 2 seconds...",
-                    attempt - 1,
-                    MAX_RETRIES
-                ),
-            );
+            log_to_frontend(&window, "map-update-log", &format!("\n⚠️ Map update attempt {}/{} failed. Retrying...", attempt - 1, MAX_RETRIES));
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
         let mut cmd = Command::new(&steamcmd_exe);
-        cmd.current_dir(&steamcmd_dir)
-            .arg("+runscript")
-            .arg(&script_path);
-        cmd.stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+        cmd.current_dir(&steamcmd_dir).arg("+runscript").arg(&script_path);
+        #[cfg(target_os = "windows")]
+        {
+            cmd.creation_flags(0x08000000);
+        }
+        cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
 
         match cmd.spawn() {
             Ok(mut child) => {
-                let stdout = child.stdout.take().expect("Failed to capture stdout");
-                let stderr = child.stderr.take().expect("Failed to capture stderr");
-
-                let window_clone_out = window.clone();
+                let stdout = child.stdout.take().expect("Failed stdout");
+                let stderr = child.stderr.take().expect("Failed stderr");
+                let w_out = window.clone();
                 tokio::spawn(async move {
-                    let mut reader = BufReader::new(stdout).lines();
-                    while let Ok(Some(line)) = reader.next_line().await {
-                        log_to_frontend(&window_clone_out, "map-update-log", &line);
-                    }
+                    let mut r = BufReader::new(stdout).lines();
+                    while let Ok(Some(l)) = r.next_line().await { log_to_frontend(&w_out, "map-update-log", &l); }
+                });
+                let w_err = window.clone();
+                tokio::spawn(async move {
+                    let mut r = BufReader::new(stderr).lines();
+                    while let Ok(Some(l)) = r.next_line().await { log_to_frontend(&w_err, "map-update-log", &l); }
                 });
 
-                let window_clone_err = window.clone();
-                tokio::spawn(async move {
-                    let mut reader = BufReader::new(stderr).lines();
-                    while let Ok(Some(line)) = reader.next_line().await {
-                        log_to_frontend(&window_clone_err, "map-update-log", &line);
-                    }
-                });
-
-                let status = child.wait().await.map_err(|e| e.to_string());
-
-                match status {
+                match child.wait().await.map_err(|e| e.to_string()) {
                     Ok(s) => {
                         if s.success() {
                             let _ = std::fs::remove_file(&script_path);
-                            log_to_frontend(
-                                &window,
-                                "map-update-log",
-                                "\n✅ Map update process completed successfully!",
-                            );
-                            window
-                                .emit(
-                                    "map-update-finished",
-                                    &serde_json::json!({ "success": true }),
-                                )
-                                .unwrap();
+                            log_to_frontend(&window, "map-update-log", "\n✅ Map update process completed successfully!");
+                            window.emit("map-update-finished", &serde_json::json!({ "success": true })).unwrap();
                             return Ok(());
-                        } else {
-                            last_error = "Process finished with non-zero exit code.".to_string();
-                        }
+                        } else { last_error = "Process finished with non-zero exit code.".to_string(); }
                     }
-                    Err(e) => {
-                        last_error = e;
-                    }
+                    Err(e) => { last_error = e; }
                 }
             }
-            Err(e) => {
-                last_error = format!("Failed to start SteamCMD for map: {}", e);
-            }
+            Err(e) => { last_error = format!("Failed to start SteamCMD: {}", e); }
         }
     }
 
     let _ = std::fs::remove_file(&script_path);
-    let err_msg = format!(
-        "\n❌ Map update process finished with an error after {} attempts: {}",
-        MAX_RETRIES, last_error
-    );
+    let err_msg = format!("\n❌ Map update failed after {} attempts: {}", MAX_RETRIES, last_error);
     log_to_frontend(&window, "map-update-log", &err_msg);
-    window
-        .emit(
-            "map-update-finished",
-            &serde_json::json!({ "success": false }),
-        )
-        .unwrap();
+    window.emit("map-update-finished", &serde_json::json!({ "success": false })).unwrap();
     Err(err_msg)
 }
 
 #[tauri::command]
 async fn update_mods(window: Window, install_path: String, mod_ids: String) -> Result<(), String> {
-    let root_path = PathBuf::from(install_path);
-    let steamcmd_dir = root_path.join("steamcmd");
-    let steamcmd_exe = steamcmd_dir.join("steamcmd.exe");
+    let steamcmd_exe = match ensure_global_steamcmd(&window, "mod-update-log").await {
+        Ok(exe) => exe,
+        Err(e) => {
+            log_to_frontend(&window, "mod-update-log", &e);
+            window.emit("mod-update-finished", &serde_json::json!({ "success": false })).unwrap();
+            return Err(e);
+        }
+    };
+    let steamcmd_dir = get_global_steamcmd_path();
 
-    if let Err(e) = ensure_steamcmd(&window, "mod-update-log", &steamcmd_dir, &steamcmd_exe).await {
-        log_to_frontend(&window, "mod-update-log", &e);
-        window
-            .emit(
-                "mod-update-finished",
-                &serde_json::json!({ "success": false }),
-            )
-            .unwrap();
-        return Err(e);
-    }
+    log_to_frontend(&window, "mod-update-log", "✅ SteamCMD ready. Starting mod update...");
 
-    log_to_frontend(
-        &window,
-        "mod-update-log",
-        "✅ SteamCMD is ready. Starting mod update...",
-    );
+    // Install into /server/ subdirectory
+    let game_install_dir = get_game_install_dir(&install_path);
+    let install_dir_arg = game_install_dir.to_string_lossy().replace("\\", "/");
 
-    let install_dir_arg = root_path.to_string_lossy().replace("\\", "/");
-    let mut script_content = format!(
-        "force_install_dir \"{}\"\nlogin anonymous\n",
-        install_dir_arg
-    );
+    let mut script_content = format!("force_install_dir \"{}\"\nlogin anonymous\n", install_dir_arg);
 
-    let parsed_mod_ids: Vec<&str> = mod_ids
-        .split(',')
-        .filter(|s| !s.trim().is_empty())
-        .collect();
+    let parsed_mod_ids: Vec<&str> = mod_ids.split(',').filter(|s| !s.trim().is_empty()).collect();
     if parsed_mod_ids.is_empty() {
-        log_to_frontend(
-            &window,
-            "mod-update-log",
-            "  > No mod IDs provided. Nothing to do.",
-        );
-        window
-            .emit(
-                "mod-update-finished",
-                &serde_json::json!({ "success": true }),
-            )
-            .unwrap();
+        log_to_frontend(&window, "mod-update-log", "  > No mod IDs provided. Nothing to do.");
+        window.emit("mod-update-finished", &serde_json::json!({ "success": true })).unwrap();
         return Ok(());
     }
 
-    log_to_frontend(
-        &window,
-        "mod-update-log",
-        &format!(
-            "  > Found {} mods to download/update...",
-            parsed_mod_ids.len()
-        ),
-    );
+    log_to_frontend(&window, "mod-update-log", &format!("  > Found {} mods to download/update...", parsed_mod_ids.len()));
     for mod_id in parsed_mod_ids {
-        script_content.push_str(&format!(
-            "workshop_download_item 2430930 {}\n",
-            mod_id.trim()
-        ));
+        script_content.push_str(&format!("workshop_download_item 2430930 {}\n", mod_id.trim()));
     }
     script_content.push_str("quit\n");
 
     let script_path = steamcmd_dir.join("mod_update_script.txt");
     if let Err(e) = std::fs::write(&script_path, script_content) {
-        return Err(format!(
-            "❌ ERROR: Failed to write mod update script: {}",
-            e
-        ));
+        return Err(format!("❌ ERROR: Failed to write mod update script: {}", e));
     }
 
     const MAX_RETRIES: u32 = 3;
@@ -922,96 +794,59 @@ async fn update_mods(window: Window, install_path: String, mod_ids: String) -> R
 
     for attempt in 1..=MAX_RETRIES {
         if attempt > 1 {
-            log_to_frontend(
-                &window,
-                "mod-update-log",
-                &format!(
-                    "\n⚠️ Mod update attempt {}/{} failed. Retrying in 2 seconds...",
-                    attempt - 1,
-                    MAX_RETRIES
-                ),
-            );
+            log_to_frontend(&window, "mod-update-log", &format!("\n⚠️ Mod update attempt {}/{} failed. Retrying...", attempt - 1, MAX_RETRIES));
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
         let mut cmd = Command::new(&steamcmd_exe);
-        cmd.current_dir(&steamcmd_dir)
-            .arg("+runscript")
-            .arg(&script_path);
-        cmd.stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+        cmd.current_dir(&steamcmd_dir).arg("+runscript").arg(&script_path);
+        #[cfg(target_os = "windows")]
+        {
+            cmd.creation_flags(0x08000000);
+        }
+        cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
 
         match cmd.spawn() {
             Ok(mut child) => {
-                let stdout = child.stdout.take().expect("Failed to capture stdout");
-                let stderr = child.stderr.take().expect("Failed to capture stderr");
-
-                let window_clone_out = window.clone();
+                let stdout = child.stdout.take().expect("Failed stdout");
+                let stderr = child.stderr.take().expect("Failed stderr");
+                let w_out = window.clone();
                 tokio::spawn(async move {
-                    let mut reader = BufReader::new(stdout).lines();
-                    while let Ok(Some(line)) = reader.next_line().await {
-                        log_to_frontend(&window_clone_out, "mod-update-log", &line);
-                    }
+                    let mut r = BufReader::new(stdout).lines();
+                    while let Ok(Some(l)) = r.next_line().await { log_to_frontend(&w_out, "mod-update-log", &l); }
+                });
+                let w_err = window.clone();
+                tokio::spawn(async move {
+                    let mut r = BufReader::new(stderr).lines();
+                    while let Ok(Some(l)) = r.next_line().await { log_to_frontend(&w_err, "mod-update-log", &l); }
                 });
 
-                let window_clone_err = window.clone();
-                tokio::spawn(async move {
-                    let mut reader = BufReader::new(stderr).lines();
-                    while let Ok(Some(line)) = reader.next_line().await {
-                        log_to_frontend(&window_clone_err, "mod-update-log", &line);
-                    }
-                });
-
-                let status = child.wait().await.map_err(|e| e.to_string());
-
-                match status {
+                match child.wait().await.map_err(|e| e.to_string()) {
                     Ok(s) => {
                         if s.success() {
                             let _ = std::fs::remove_file(&script_path);
-                            log_to_frontend(
-                                &window,
-                                "mod-update-log",
-                                "\n✅ Mod update process completed successfully!",
-                            );
-                            window
-                                .emit(
-                                    "mod-update-finished",
-                                    &serde_json::json!({ "success": true }),
-                                )
-                                .unwrap();
+                            log_to_frontend(&window, "mod-update-log", "\n✅ Mod update process completed successfully!");
+                            window.emit("mod-update-finished", &serde_json::json!({ "success": true })).unwrap();
                             return Ok(());
-                        } else {
-                            last_error = "Process finished with non-zero exit code.".to_string();
-                        }
+                        } else { last_error = "Process finished with non-zero exit code.".to_string(); }
                     }
-                    Err(e) => {
-                        last_error = e;
-                    }
+                    Err(e) => { last_error = e; }
                 }
             }
-            Err(e) => {
-                last_error = format!("Failed to start SteamCMD for mods: {}", e);
-            }
+            Err(e) => { last_error = format!("Failed to start SteamCMD: {}", e); }
         }
     }
 
     let _ = std::fs::remove_file(&script_path);
-    let err_msg = format!(
-        "\n❌ Mod update process finished with an error after {} attempts: {}",
-        MAX_RETRIES, last_error
-    );
+    let err_msg = format!("\n❌ Mod update failed after {} attempts: {}", MAX_RETRIES, last_error);
     log_to_frontend(&window, "mod-update-log", &err_msg);
-    window
-        .emit(
-            "mod-update-finished",
-            &serde_json::json!({ "success": false }),
-        )
-        .unwrap();
+    window.emit("mod-update-finished", &serde_json::json!({ "success": false })).unwrap();
     Err(err_msg.to_string())
 }
 
 #[tauri::command]
 async fn list_backups(install_path: String) -> Result<Vec<BackupInfo>, String> {
+    // Backups are stored in profile root (install_path/ManagerBackups)
     let backup_dir = get_backup_dir(&install_path);
     if !backup_dir.exists() {
         return Ok(vec![]);
@@ -1042,9 +877,12 @@ async fn create_backup(install_path: String) -> Result<(), String> {
     let backup_dir = get_backup_dir(&install_path);
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
-    let saved_dir = PathBuf::from(&install_path)
+    // Saved dir is in /server/ShooterGame/Saved
+    let game_dir = get_game_install_dir(&install_path);
+    let saved_dir = game_dir
         .join("ShooterGame")
         .join("Saved");
+
     if !saved_dir.exists() {
         return Err("Saved directory not found. Cannot create backup.".to_string());
     }
@@ -1088,9 +926,11 @@ async fn restore_backup(install_path: String, backup_filename: String) -> Result
         return Err("Backup file not found.".to_string());
     }
 
-    let saved_dir = PathBuf::from(&install_path)
+    let game_dir = get_game_install_dir(&install_path);
+    let saved_dir = game_dir
         .join("ShooterGame")
         .join("Saved");
+
     if saved_dir.exists() {
         fs::remove_dir_all(&saved_dir)
             .map_err(|e| format!("Failed to remove old Saved directory: {}", e))?;
@@ -1134,65 +974,37 @@ async fn delete_backup(install_path: String, backup_filename: String) -> Result<
 
 #[tauri::command]
 async fn get_server_build_info(install_path: String) -> Result<String, String> {
-    let install_path_buf = PathBuf::from(&install_path);
-    
-    // Primary location: In the steamcmd/steamapps folder (your SteamCMD setup)
-    let manifest_path_steamcmd = install_path_buf
-        .join("steamcmd")
+    let game_dir = get_game_install_dir(&install_path);
+    // Check in /server/steamapps/...
+    let manifest_path = game_dir
         .join("steamapps")
         .join("appmanifest_2430930.acf");
     
-    // Fallback location 1: In the install path's steamapps folder (old/direct installs)
-    let manifest_path_1 = install_path_buf
-        .join("steamapps")
-        .join("appmanifest_2430930.acf");
-    
-    // Fallback location 2: In the parent steamapps folder (Steam library structure)
-    let manifest_path_2 = install_path_buf
-        .parent()
-        .and_then(|p| p.parent())
-        .map(|p| p.join("appmanifest_2430930.acf"));
-    
-    // Try each location in order
-    let manifest_paths = vec![
-        Some(manifest_path_steamcmd),  // Check steamcmd folder FIRST
-        Some(manifest_path_1),
-        manifest_path_2,
-    ];
-    
-    for maybe_path in manifest_paths.iter().flatten() {
-        if maybe_path.exists() {
-            println!("Found manifest at: {:?}", maybe_path);
-            let content = fs::read_to_string(maybe_path).map_err(|e| e.to_string())?;
-            let re = Regex::new(r#""buildid"\s*"(\d+)""#).unwrap();
-            if let Some(caps) = re.captures(&content) {
-                if let Some(build_id) = caps.get(1) {
-                    return Ok(build_id.as_str().to_string());
-                }
+    if manifest_path.exists() {
+        println!("Found manifest at: {:?}", manifest_path);
+        let content = fs::read_to_string(manifest_path).map_err(|e| e.to_string())?;
+        let re = Regex::new(r#""buildid"\s*"(\d+)""#).unwrap();
+        if let Some(caps) = re.captures(&content) {
+            if let Some(build_id) = caps.get(1) {
+                return Ok(build_id.as_str().to_string());
             }
-            return Err("Could not find build ID in manifest file.".to_string());
         }
+        return Err("Could not find build ID in manifest file.".to_string());
     }
     
-    // If we get here, we couldn't find the manifest anywhere
-    Err(format!(
-        "App manifest file not found. Searched in:\n  - {:?}\n  - {:?}\n  - {:?}",
-        manifest_paths[0].as_ref().unwrap(),
-        manifest_paths[1].as_ref().unwrap(),
-        manifest_paths[2].as_ref().unwrap_or(&PathBuf::from("N/A"))
-    ))
+    Err(format!("App manifest file not found at: {:?}", manifest_path))
 }
 
 #[tauri::command]
-async fn get_latest_server_build(install_path: String) -> Result<String, String> {
-    let steamcmd_dir = PathBuf::from(&install_path).join("steamcmd");
-    let steamcmd_exe = steamcmd_dir.join("steamcmd.exe");
-
-    if !steamcmd_exe.exists() {
-        return Err("steamcmd.exe not found. Cannot check for updates.".to_string());
-    }
+async fn get_latest_server_build(window: Window) -> Result<String, String> {
+    let steamcmd_exe = match ensure_global_steamcmd(&window, "manager-log-line").await {
+        Ok(exe) => exe,
+        Err(e) => return Err(e),
+    };
+    let steamcmd_dir = get_global_steamcmd_path();
 
     let output = Command::new(&steamcmd_exe)
+        .current_dir(&steamcmd_dir)
         .arg("+login")
         .arg("anonymous")
         .arg("+app_info_print")
@@ -1235,7 +1047,6 @@ async fn get_server_stats(
     let mut sys = System::new();
 
     // Use refresh_process(pid) to update just that process.
-    // This returns true if the process was found and updated.
     if sys.refresh_process(pid) {
         if let Some(process) = sys.process(pid) {
             Ok(ServerStats {
@@ -1441,28 +1252,20 @@ fn main() {
             get_latest_server_build,
             get_server_stats,
             diagnose_rcon,
-            get_local_ips
+            get_local_ips,
+            discord_bot::start_discord_bot,
+            discord_bot::discord_bot_status_response
         ])
         .setup(|app| {
-            // Get the tray icon created from tauri.conf.json
             let tray = match app.tray_by_id("main") {
                 Some(t) => t,
                 None => return Ok(()),
             };
-
-            // Create menu items
             let show = MenuItemBuilder::new("Show Window").id("show").build(app)?;
-
             let quit = MenuItemBuilder::new("Quit").id("quit").build(app)?;
-
-            // Build the menu
             let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
-
-            // Set menu and tooltip on tray
             tray.set_menu(Some(menu))?;
             tray.set_tooltip(Some("BT Ark Ascended Server Manager"))?;
-
-            // Set up menu event handler
             tray.on_menu_event(|app, event| match event.id().as_ref() {
                 "show" => {
                     if let Some(window) = app.get_webview_window("main") {
@@ -1476,8 +1279,6 @@ fn main() {
                 }
                 _ => {}
             });
-
-            // Set up tray icon click handler
             tray.on_tray_icon_event(|tray, event| match event {
                 TrayIconEvent::Click {
                     button: MouseButton::Left,
@@ -1504,9 +1305,9 @@ fn main() {
                 }
                 _ => {}
             });
-
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
