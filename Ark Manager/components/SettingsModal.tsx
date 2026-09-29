@@ -161,19 +161,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.5.2'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.5.3'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v1.5.2 (Startup Diagnostics, Error Reporting & Console Polish)</p>
+                        <p className="font-semibold text-gray-200">v1.5.3 (Stop Button & Pre-Shutdown World Save Resolution)</p>
                         <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
-                            <li><strong>Startup Failure Diagnostics Modal:</strong> Added a dedicated diagnostics window that automatically appears if a server fails to launch, displaying the exact operating system error, verified candidate executable paths, active launch arguments, and troubleshooting checklist.</li>
-                            <li><strong>One-Click Diagnostic Export:</strong> Added a "Copy Diagnostic Report" button in the failure dialog to instantly copy all startup details and configuration paths to the clipboard for troubleshooting.</li>
-                            <li><strong>Automatic Console Log Redirection:</strong> Server startup failures and detailed stack traces are now automatically dispatched directly to the Manager Log in the Console tab, with an automatic tab switch so the issue is immediately visible.</li>
-                            <li><strong>Console Log Clipboard Copy:</strong> Added a "Copy Logs" button to the Console tab toolbar to quickly export manager or server logs.</li>
-                            <li><strong>Multi-Path Executable Discovery:</strong> Enhanced the launcher to verify executable existence across both standard and nested <code>/server/</code> directory hierarchies, with active working directory isolation to <code>Win64</code> for reliable DLL resolution.</li>
-                            <li><strong>Release Security:</strong> Maintained disabled developer tools and element inspection in production release builds.</li>
+                            <li><strong>Stop Button Non-Blocking Save:</strong> Fixed an issue where clicking the Stop button with "Save world before stop or restart" enabled would hang indefinitely and fail to shut down the server. When ARK writes save data to disk, RCON responses can be delayed or omitted; pre-shutdown <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> now executes with a strict 3.5-second safety timeout, guaranteeing that process termination is always triggered.</li>
+                            <li><strong>Instant Stopping State Transition:</strong> Clicking Stop now immediately updates the server status badge to <span className="text-amber-400 font-semibold">Stopping...</span> and locks the button to prevent redundant clicks or race conditions while the server shuts down.</li>
+                            <li><strong>Graceful Exit Handshake:</strong> Before issuing process kill commands, the manager now sends an RCON <code className="text-cyan-300 font-mono text-xs">DoExit</code> instruction with a 1-second timeout, allowing Unreal Engine to perform an orderly internal shutdown.</li>
+                            <li><strong>Reliable Backend Process Termination:</strong> Enhanced the backend stop routine to target <code className="text-cyan-300 font-mono text-xs">ArkAscendedServer.exe</code> by both PID and process image name with tree-kill enforcement (<code className="text-cyan-300 font-mono text-xs">/F /T</code>), ensuring unresponsive or zombie server instances are cleanly terminated.</li>
+                            <li><strong>Backend RCON Socket Timeout Protection:</strong> Wrapped all backend RCON command transmissions with an asynchronous 4-second timeout, preventing hanging TCP sockets from ever freezing backend worker threads.</li>
                         </ul>
                     </div>
                 </div>
@@ -197,6 +196,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.5.2 (Startup Diagnostics, Error Reporting & Console Polish)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
+                                    <li><strong>Startup Failure Diagnostics Modal:</strong> Added a dedicated diagnostics window that automatically appears if a server fails to launch, displaying the exact operating system error, verified candidate executable paths, active launch arguments, and troubleshooting checklist.</li>
+                                    <li><strong>One-Click Diagnostic Export:</strong> Added a "Copy Diagnostic Report" button in the failure dialog to instantly copy all startup details and configuration paths to the clipboard for troubleshooting.</li>
+                                    <li><strong>Automatic Console Log Redirection:</strong> Server startup failures and detailed stack traces are now automatically dispatched directly to the Manager Log in the Console tab, with an automatic tab switch so the issue is immediately visible.</li>
+                                    <li><strong>Console Log Clipboard Copy:</strong> Added a "Copy Logs" button to the Console tab toolbar to quickly export manager or server logs.</li>
+                                    <li><strong>Multi-Path Executable Discovery:</strong> Enhanced the launcher to verify executable existence across both standard and nested <code>/server/</code> directory hierarchies, with active working directory isolation to <code>Win64</code> for reliable DLL resolution.</li>
+                                    <li><strong>Release Security:</strong> Maintained disabled developer tools and element inspection in production release builds.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v1.5.0 (Automation, Dino Wipe, World Persistence & Broadcast Reasons)</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">

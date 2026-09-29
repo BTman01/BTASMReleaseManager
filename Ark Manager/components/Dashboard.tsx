@@ -24,6 +24,7 @@ import UnsavedChangesModal from './UnsavedChangesModal';
 import ClusterVisualization from './ClusterVisualization';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import AnalyticsDashboard from './AnalyticsDashboard';
+import { ServerStartErrorModal } from './ServerStartErrorModal';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import * as fs from '@tauri-apps/plugin-fs';
 import { join, resolve } from '@tauri-apps/api/path';
@@ -234,6 +235,20 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
   const [activeRestartEndTime, setActiveRestartEndTime] = useState<number | null>(null);
   const timedRestartIntervalRef = useRef<number | null>(null);
 
+  const [startErrorModalState, setStartErrorModalState] = useState<{
+    isOpen: boolean;
+    error: string;
+    paths: string[];
+    args: string[];
+    profile: ServerProfile | null;
+  }>({
+    isOpen: false,
+    error: '',
+    paths: [],
+    args: [],
+    profile: null,
+  });
+
   const startupTimerRef = useRef<number | null>(null);
   const updateCheckTimerRef = useRef<number | null>(null);
   const restartIntervalRef = useRef<number | null>(null);
@@ -322,6 +337,9 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
     if (startupTimerRef.current) clearTimeout(startupTimerRef.current);
     
+    let launchArgs: string[] = [];
+    let candidatePaths: string[] = [];
+    
     try {
         const { map, sessionName, queryPort, gamePort, serverPassword, adminPassword, mods, bDisableBattleEye, maxPlayers, bServerPVE, bEnableRcon, rconPort, rconPassword, rconIp, bEnableClustering, clusterId, clusterDirOverride, serverPlatform, customCommandLineArgs, bEnableCpuAffinity, cpuAffinityCores, cpuAffinityMask } = profileToStart.config;
         
@@ -331,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         
         const mapAndOptionsArg = `${map}?${urlOptions.join('?')}`;
         
-        const launchArgs = [mapAndOptionsArg];
+        launchArgs = [mapAndOptionsArg];
         launchArgs.push(`-Port=${gamePort}`);
         launchArgs.push(`-QueryPort=${queryPort}`);
         launchArgs.push(`-WinLiveMaxPlayers=${maxPlayers}`);
@@ -403,7 +421,32 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         }
         
         const rootPath = directoryService.getRootInstallPath(profileToStart.path);
-        // Simplified start logic: Expect standard structure
+        
+        // Prepare expected executable paths for diagnostics
+        candidatePaths = [];
+        try {
+            if (profileToStart.path) {
+                candidatePaths.push(await join(profileToStart.path, 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe'));
+                candidatePaths.push(await join(profileToStart.path, 'server', 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe'));
+            }
+            if (rootPath && rootPath !== profileToStart.path) {
+                candidatePaths.push(await join(rootPath, 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe'));
+                candidatePaths.push(await join(rootPath, 'server', 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe'));
+            }
+        } catch {
+            if (profileToStart.path) {
+                candidatePaths.push(`${profileToStart.path}\\ShooterGame\\Binaries\\Win64\\ArkAscendedServer.exe`);
+                candidatePaths.push(`${profileToStart.path}\\server\\ShooterGame\\Binaries\\Win64\\ArkAscendedServer.exe`);
+            }
+        }
+
+        setManagerLog(prev => [
+            ...prev,
+            `[Manager] Attempting to start server "${profileToStart.profileName}"...`,
+            `[Manager] Directory: "${profileToStart.path}"`,
+        ]);
+
+        // Start server process via Tauri backend
         const pid = await invoke<number>('start_ark_server', {
             profileId: profileId,
             serverPath: rootPath,
@@ -422,18 +465,54 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         updateProfile(profileId, { pid: pid });
         setManagerLog(prev => [
             ...prev,
-            `[Manager] Server process started with PID: ${pid}`,
+            `[Manager] ✅ Server process successfully started with PID: ${pid}`,
             ...(bEnableCpuAffinity && affinityHex ? [`[Manager] CPU Affinity Applied: ${affinityHex} (Cores: ${cpuAffinityCores && cpuAffinityCores.length > 0 ? cpuAffinityCores.join(', ') : 'Custom Mask'})`] : []),
             `[Manager] Command Line: ${bEnableCpuAffinity && affinityHex ? `start /affinity ${affinityHex.replace(/^0x/i, '')} ` : ''}ArkAscendedServer.exe ${launchArgs.join(' ')}`
         ]);
         
     } catch (error) {
-        onShowToast('Error starting server. See console for details.', 'error');
-        console.error(error);
+        const errorMsg = error instanceof Error 
+            ? error.message 
+            : (typeof error === 'string' ? error : JSON.stringify(error));
+            
+        console.error("Server start failure:", error);
+        
+        // Log detailed error report to the manager log
+        setManagerLog(prev => [
+            ...prev,
+            `[Manager] ==========================================`,
+            `[Manager] ❌ ERROR: Server "${profileToStart.profileName}" failed to start!`,
+            `[Manager] Error Details: ${errorMsg}`,
+            `[Manager] Configured Path: "${profileToStart.path}"`,
+            `[Manager] Executable paths checked:`,
+            ...candidatePaths.map(p => `[Manager]   • ${p}`),
+            `[Manager] Launch Arguments: ${launchArgs.join(' ')}`,
+            `[Manager] Troubleshooting Checklist:`,
+            `[Manager]   1. Ensure server files are installed. Click "Update / Install" to download via SteamCMD.`,
+            `[Manager]   2. Ensure Microsoft Visual C++ 2015-2022 Redistributable (x64) is installed.`,
+            `[Manager]   3. Check Task Manager to confirm no stale ArkAscendedServer.exe is still running.`,
+            `[Manager]   4. Ensure Windows Defender or Antivirus didn't block or quarantine ArkAscendedServer.exe.`,
+            `[Manager] ==========================================`,
+        ]);
+
         if (startupTimerRef.current) clearTimeout(startupTimerRef.current);
         scheduledRestartWipeProfilesRef.current.delete(profileId);
         updateProfile(profileId, { status: ServerStatus.Error });
-        notificationService.sendNotification('Server Start Failed', `The server "${profileToStart.profileName}" failed to start.`);
+        
+        onShowToast(`Server start failed: ${errorMsg.slice(0, 80)}`, 'error');
+        notificationService.sendNotification('Server Start Failed', `The server "${profileToStart.profileName}" failed to start: ${errorMsg}`);
+        
+        // Open detailed error modal with full diagnostics
+        setStartErrorModalState({
+            isOpen: true,
+            error: errorMsg,
+            paths: candidatePaths,
+            args: launchArgs,
+            profile: profileToStart
+        });
+
+        // Automatically switch to console so the manager log is right in front of the user
+        setActiveTab('console');
     }
 }, [updateProfile, onShowToast]);
 
@@ -541,39 +620,59 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
             }
         }
 
-        // Save world before stopping if configured and server is currently running
+        // 1. Immediately indicate Stopping state so UI disables buttons and reflects state
+        updateProfile(profileId, { status: ServerStatus.Stopping });
+
+        // 2. Save world before stopping if configured and server was running
         if (profileToStop.status === ServerStatus.Running && (profileToStop.config.saveWorldOnStopRestart ?? true)) {
             const timeSinceLastSave = Date.now() - (lastSaveWorldTimeRef.current[profileId] || 0);
-            if (timeSinceLastSave > 5000) {
-                if (profileToStop.config.bEnableRcon) {
-                    try {
-                        setManagerLog(prev => [...prev, `[Manager] 💾 Saving world progress (SaveWorld) before stopping "${profileToStop.profileName}"...`]);
-                        await invoke('send_rcon_command', {
-                            profileId: profileId,
-                            command: 'SaveWorld',
-                        });
-                        lastSaveWorldTimeRef.current[profileId] = Date.now();
-                        setManagerLog(prev => [
-                            ...prev,
-                            `[Manager] $ SaveWorld`,
-                            `[Manager] ✅ SaveWorld completed successfully.`
-                        ]);
-                        await new Promise(resolve => setTimeout(resolve, 1500));
-                    } catch (saveErr) {
-                        console.warn(`[Manager] SaveWorld before stop failed or timed out:`, saveErr);
-                        setManagerLog(prev => [...prev, `[Manager] ⚠️ SaveWorld before stop attempt: ${saveErr}`]);
-                    }
-                } else {
-                    setManagerLog(prev => [...prev, `[Manager] ⚠️ Cannot execute SaveWorld before stopping: RCON is disabled for "${profileToStop.profileName}".`]);
+            if (timeSinceLastSave > 5000 && profileToStop.config.bEnableRcon) {
+                try {
+                    setManagerLog(prev => [...prev, `[Manager] 💾 Saving world progress (SaveWorld) before stopping "${profileToStop.profileName}"...`]);
+                    const savePromise = invoke('send_rcon_command', {
+                        profileId: profileId,
+                        command: 'SaveWorld',
+                    });
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('SaveWorld timeout (3.5s elapsed, continuing with stop)')), 3500)
+                    );
+                    await Promise.race([savePromise, timeoutPromise]);
+                    lastSaveWorldTimeRef.current[profileId] = Date.now();
+                    setManagerLog(prev => [
+                        ...prev,
+                        `[Manager] $ SaveWorld`,
+                        `[Manager] ✅ SaveWorld completed successfully.`
+                    ]);
+                } catch (saveErr) {
+                    console.warn(`[Manager] SaveWorld notice before stop:`, saveErr);
+                    setManagerLog(prev => [...prev, `[Manager] ⚠️ SaveWorld notice: ${saveErr}`]);
                 }
+                // Brief pause to allow disk flush
+                await new Promise(resolve => setTimeout(resolve, 800));
             }
         }
 
-        updateProfile(profileId, { status: ServerStatus.Stopping });
+        // 3. Attempt graceful DoExit via RCON if enabled
+        if (profileToStop.config.bEnableRcon && profileToStop.status === ServerStatus.Running) {
+            try {
+                const exitPromise = invoke('send_rcon_command', {
+                    profileId: profileId,
+                    command: 'DoExit',
+                });
+                const exitTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DoExit timeout')), 1000));
+                await Promise.race([exitPromise, exitTimeout]);
+            } catch {
+                // DoExit initiates termination; socket closing is normal
+            }
+        }
+
+        // 4. Guaranteed stop via process manager / taskkill
         try {
             await invoke('stop_ark_server', {
-                profileId: profileId
+                profileId: profileId,
+                pid: profileToStop.pid
             });
+            setManagerLog(prev => [...prev, `[Manager] 🛑 Server stop command executed for "${profileToStop.profileName}".`]);
         } catch(error) {
             console.error("Failed to stop server:", error);
             onShowToast(`Failed to stop server: ${error}`, 'error');
@@ -605,28 +704,28 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         // Save world before restart if configured
         if (config.saveWorldOnStopRestart ?? true) {
             const timeSinceLastSave = Date.now() - (lastSaveWorldTimeRef.current[id] || 0);
-            if (timeSinceLastSave > 5000) {
-                if (config.bEnableRcon) {
-                    try {
-                        setManagerLog(prev => [...prev, `[Manager] 💾 Saving world progress (SaveWorld) before restarting "${profileName}"...`]);
-                        await invoke('send_rcon_command', {
-                            profileId: id,
-                            command: 'SaveWorld',
-                        });
-                        lastSaveWorldTimeRef.current[id] = Date.now();
-                        setManagerLog(prev => [
-                            ...prev,
-                            `[Manager] $ SaveWorld`,
-                            `[Manager] ✅ SaveWorld completed successfully.`
-                        ]);
-                        await new Promise(resolve => setTimeout(resolve, 1500));
-                    } catch (saveErr) {
-                        console.warn(`[Manager] SaveWorld before restart failed or timed out:`, saveErr);
-                        setManagerLog(prev => [...prev, `[Manager] ⚠️ SaveWorld before restart attempt: ${saveErr}`]);
-                    }
-                } else {
-                    setManagerLog(prev => [...prev, `[Manager] ⚠️ Cannot execute SaveWorld before restart: RCON is disabled for "${profileName}".`]);
+            if (timeSinceLastSave > 5000 && config.bEnableRcon) {
+                try {
+                    setManagerLog(prev => [...prev, `[Manager] 💾 Saving world progress (SaveWorld) before restarting "${profileName}"...`]);
+                    const savePromise = invoke('send_rcon_command', {
+                        profileId: id,
+                        command: 'SaveWorld',
+                    });
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('SaveWorld timeout (3.5s elapsed, continuing with restart)')), 3500)
+                    );
+                    await Promise.race([savePromise, timeoutPromise]);
+                    lastSaveWorldTimeRef.current[id] = Date.now();
+                    setManagerLog(prev => [
+                        ...prev,
+                        `[Manager] $ SaveWorld`,
+                        `[Manager] ✅ SaveWorld completed successfully.`
+                    ]);
+                } catch (saveErr) {
+                    console.warn(`[Manager] SaveWorld notice before restart:`, saveErr);
+                    setManagerLog(prev => [...prev, `[Manager] ⚠️ SaveWorld notice: ${saveErr}`]);
                 }
+                await new Promise(resolve => setTimeout(resolve, 800));
             }
         }
 
@@ -657,7 +756,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
                 updateProfile(id, { status: ServerStatus.Updating });
                 try {
-                    await invoke('stop_ark_server', { profileId: id });
+                    await invoke('stop_ark_server', { profileId: id, pid: profileToRestart.pid });
                 } catch (e) {
                     console.error("Failed stopping server before restart update:", e);
                 }
@@ -675,7 +774,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
         updateProfile(id, { status: ServerStatus.Restarting });
         try {
-            await invoke('stop_ark_server', { profileId: id });
+            await invoke('stop_ark_server', { profileId: id, pid: profileToRestart.pid });
         } catch(error) {
             console.error("Failed to stop server for restart:", error);
             onShowToast(`Failed to stop server for restart: ${error}`, 'error');
@@ -2494,6 +2593,15 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         profileName={profileToDelete?.name || ''}
         onConfirm={confirmDeleteProfile}
         onCancel={cancelDeleteProfile}
+      />
+      <ServerStartErrorModal
+        isOpen={startErrorModalState.isOpen}
+        onClose={() => setStartErrorModalState(prev => ({ ...prev, isOpen: false }))}
+        profile={startErrorModalState.profile}
+        errorMessage={startErrorModalState.error}
+        expectedPaths={startErrorModalState.paths}
+        launchArgs={startErrorModalState.args}
+        onOpenConsole={() => setActiveTab('console')}
       />
 
       {status === ServerStatus.Updating && (
