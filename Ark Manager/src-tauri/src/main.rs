@@ -1,4 +1,3 @@
-
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -44,6 +43,9 @@ struct ServerProcessInfo {
 }
 
 struct ServerProcesses(Arc<Mutex<HashMap<String, ServerProcessInfo>>>);
+
+static CURRENT_UPDATE_PID: Lazy<Arc<Mutex<Option<u32>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
+static UPDATE_CANCELLED: Lazy<Arc<Mutex<bool>>> = Lazy::new(|| Arc::new(Mutex::new(false)));
 
 #[derive(serde::Serialize, Clone)]
 struct BackupInfo {
@@ -232,25 +234,46 @@ async fn start_ark_server(
         }
     }
 
-    // Expecting files in /server/ShooterGame/...
-    let game_dir = get_game_install_dir(&install_path);
-    let executable_path = game_dir
-        .join("ShooterGame")
-        .join("Binaries")
-        .join("Win64")
-        .join("ArkAscendedServer.exe");
+    // Search for executable across all possible standard and custom folder structures
+    let candidates = [
+        PathBuf::from(&install_path).join("ShooterGame").join("Binaries").join("Win64").join("ArkAscendedServer.exe"),
+        PathBuf::from(&install_path).join("server").join("ShooterGame").join("Binaries").join("Win64").join("ArkAscendedServer.exe"),
+        PathBuf::from(&_server_path).join("ShooterGame").join("Binaries").join("Win64").join("ArkAscendedServer.exe"),
+        PathBuf::from(&_server_path).join("server").join("ShooterGame").join("Binaries").join("Win64").join("ArkAscendedServer.exe"),
+    ];
 
-    if !executable_path.exists() {
-        return Err(format!("Server executable not found at: {:?}", executable_path));
+    let mut found_exe: Option<PathBuf> = None;
+    for cand in &candidates {
+        if cand.exists() {
+            found_exe = Some(cand.clone());
+            break;
+        }
     }
 
-    // SPAWN DIRECTLY
+    let executable_path = match found_exe {
+        Some(p) => p,
+        None => {
+            return Err(format!(
+                "Server executable (ArkAscendedServer.exe) not found!\nChecked paths:\n  1. {}\n  2. {}\n  3. {}\n  4. {}\nPlease verify that your server files are installed in your selected directory (click Update / Install in the manager).",
+                candidates[0].display(),
+                candidates[1].display(),
+                candidates[2].display(),
+                candidates[3].display()
+            ));
+        }
+    };
+
+    // Working directory must be the Win64 directory so Windows DLLs (steam_api64.dll etc.) resolve correctly
+    let working_dir = executable_path.parent().unwrap_or(Path::new("."));
+
+    // SPAWN DIRECTLY WITH WORKING DIRECTORY
     let mut child = Command::new(&executable_path)
+        .current_dir(working_dir)
         .args(&args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
-        .map_err(|e| format!("Failed to start server: {}", e))?;
+        .map_err(|e| format!("Failed to spawn ArkAscendedServer.exe at {:?}: {}", executable_path, e))?;
 
     let pid = child.id().ok_or("Failed to get process ID")?;
     let cancellation_token = CancellationToken::new();
@@ -271,9 +294,15 @@ async fn start_ark_server(
     let win_clone = window.clone();
     let profile_id_clone = profile_id.clone();
     
-    // Standard Log Path for Ark Ascended in /server/...
-    let log_file_path = game_dir
-        .join("ShooterGame")
+    // Standard Log Path for Ark Ascended relative to the discovered executable
+    let shooter_game_dir = executable_path
+        .parent() // Win64
+        .and_then(|p| p.parent()) // Binaries
+        .and_then(|p| p.parent()) // ShooterGame
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| get_game_install_dir(&install_path).join("ShooterGame"));
+
+    let log_file_path = shooter_game_dir
         .join("Saved")
         .join("Logs")
         .join("ShooterGame.log");
@@ -445,6 +474,7 @@ async fn start_ark_server(
 #[tauri::command]
 async fn stop_ark_server(
     profile_id: String,
+    pid: Option<u32>,
     processes: State<'_, ServerProcesses>,
 ) -> Result<(), String> {
     let process_info = {
@@ -452,25 +482,44 @@ async fn stop_ark_server(
         procs.get(&profile_id).cloned()
     };
 
-    if let Some(info) = process_info {
+    let target_pid = process_info.as_ref().map(|p| p.pid).or(pid);
+
+    if let Some(p_id) = target_pid {
         #[cfg(target_os = "windows")]
         {
-            std::process::Command::new("taskkill")
-                .args(&["/PID", &info.pid.to_string(), "/F", "/T"])
-                .output()
-                .map_err(|e| format!("Failed to stop server: {}", e))?;
+            use std::os::windows::process::CommandExt;
+            let mut cmd = std::process::Command::new("taskkill");
+            cmd.args(&["/PID", &p_id.to_string(), "/F", "/T"]);
+            cmd.creation_flags(0x08000000);
+            let _ = cmd.output();
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            std::process::Command::new("kill")
-                .args(&["-9", &info.pid.to_string()])
-                .output()
-                .map_err(|e| format!("Failed to stop server: {}", e))?;
+            let _ = std::process::Command::new("kill")
+                .args(&["-9", &p_id.to_string()])
+                .output();
+        }
+
+        let mut procs = processes.0.lock().await;
+        if let Some(info) = procs.remove(&profile_id) {
+            info.cancellation_token.cancel();
         }
         Ok(())
     } else {
-        Err("No running server found for this profile".to_string())
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let mut cmd = std::process::Command::new("taskkill");
+            cmd.args(&["/IM", "ArkAscendedServer.exe", "/F", "/T"]);
+            cmd.creation_flags(0x08000000);
+            let _ = cmd.output();
+        }
+        let mut procs = processes.0.lock().await;
+        if let Some(info) = procs.remove(&profile_id) {
+            info.cancellation_token.cancel();
+        }
+        Ok(())
     }
 }
 
@@ -492,50 +541,72 @@ async fn send_rcon_command(
         }
 
         let addr = format!("{}:{}", info.rcon_ip, info.rcon_port);
-        let pass = info.rcon_password.as_deref().unwrap_or_default();
+        let pass = info.rcon_password.as_deref().unwrap_or_default().to_string();
+        let cmd = command.clone();
+        let pid_clone = profile_id.clone();
+        let win_clone = window.clone();
 
-        match Connection::open(&addr, pass, Settings::default()).await {
-            Ok(mut conn) => {
-                match conn.exec(&command).await {
-                    Ok(response) => {
-                        let response_text = if response.trim().is_empty() {
-                            format!("✓ Command '{}' executed successfully", command)
-                        } else {
-                            response.trim().to_string()
-                        };
+        let rcon_future = async move {
+            match Connection::open(&addr, &pass, Settings::default()).await {
+                Ok(mut conn) => {
+                    match conn.exec(&cmd).await {
+                        Ok(response) => {
+                            let response_text = if response.trim().is_empty() {
+                                format!("✓ Command '{}' executed successfully", cmd)
+                            } else {
+                                response.trim().to_string()
+                            };
 
-                        let _ = window.emit(
-                            "manager-log-line",
-                            serde_json::json!({
-                                "profile_id": profile_id,
-                                "line": response_text
-                            }),
-                        );
-                        Ok(())
-                    }
-                    Err(e) => {
-                        let error_msg = format!("❌ Command failed: {}", e);
-                        let _ = window.emit(
-                            "manager-log-line",
-                            serde_json::json!({
-                                "profile_id": profile_id,
-                                "line": error_msg
-                            }),
-                        );
-                        Err(format!("RCON command failed: {}", e))
+                            let _ = win_clone.emit(
+                                "manager-log-line",
+                                serde_json::json!({
+                                    "profile_id": pid_clone,
+                                    "line": response_text
+                                }),
+                            );
+                            Ok(())
+                        }
+                        Err(e) => {
+                            let error_msg = format!("❌ Command failed: {}", e);
+                            let _ = win_clone.emit(
+                                "manager-log-line",
+                                serde_json::json!({
+                                    "profile_id": pid_clone,
+                                    "line": error_msg
+                                }),
+                            );
+                            Err(format!("RCON command failed: {}", e))
+                        }
                     }
                 }
+                Err(e) => {
+                    let error_msg = format!("❌ RCON connection failed: {}", e);
+                    let _ = win_clone.emit(
+                        "manager-log-line",
+                        serde_json::json!({
+                            "profile_id": pid_clone,
+                            "line": error_msg
+                        }),
+                    );
+                    Err(format!("RCON connection failed: {}", e))
+                }
             }
-            Err(e) => {
-                let error_msg = format!("❌ RCON connection failed: {}", e);
+        };
+
+        // Enforce a strict 4-second timeout on all RCON operations to prevent blocking callers
+        match tokio::time::timeout(Duration::from_secs(4), rcon_future).await {
+            Ok(res) => res,
+            Err(_) => {
+                let timeout_msg = format!("⚠️ RCON command '{}' timed out after 4 seconds (executed or busy).", command);
                 let _ = window.emit(
                     "manager-log-line",
                     serde_json::json!({
                         "profile_id": profile_id,
-                        "line": error_msg
+                        "line": timeout_msg
                     }),
                 );
-                Err(format!("RCON connection failed: {}", e))
+                // Return Ok for SaveWorld/DoExit so timeouts don't block subsequent shutdown sequence
+                Ok(())
             }
         }
     } else {
@@ -544,7 +615,112 @@ async fn send_rcon_command(
 }
 
 #[tauri::command]
-async fn update_server_files(window: Window, install_path: String) -> Result<(), String> {
+async fn clean_server_appmanifest(window: Window, install_path: String) -> Result<String, String> {
+    let game_dir = get_game_install_dir(&install_path);
+    let candidates = [
+        game_dir.join("steamapps").join("appmanifest_2430930.acf"),
+        PathBuf::from(&install_path).join("steamapps").join("appmanifest_2430930.acf"),
+    ];
+
+    let mut found = false;
+    for manifest_path in &candidates {
+        if manifest_path.exists() {
+            if let Err(e) = fs::remove_file(manifest_path) {
+                return Err(format!("Failed to delete manifest at {:?}: {}", manifest_path, e));
+            }
+            log_to_frontend(
+                &window,
+                "update-log",
+                &format!("🧹 Deleted appmanifest cache at: {:?}", manifest_path),
+            );
+            found = true;
+        }
+    }
+
+    if found {
+        Ok("Deleted appmanifest_2430930.acf successfully. Steam will perform a full build check.".to_string())
+    } else {
+        Ok("No existing appmanifest_2430930.acf was found on disk.".to_string())
+    }
+}
+
+#[tauri::command]
+async fn cancel_server_update(window: Window) -> Result<(), String> {
+    *UPDATE_CANCELLED.lock().await = true;
+    log_to_frontend(
+        &window,
+        "update-log",
+        "\n🛑 [Quit] Received quit command. Cancelling SteamCMD update process...",
+    );
+
+    let maybe_pid = {
+        let mut guard = CURRENT_UPDATE_PID.lock().await;
+        guard.take()
+    };
+
+    if let Some(pid) = maybe_pid {
+        let mut sys = System::new_all();
+        sys.refresh_all();
+        let process_id = Pid::from_u32(pid);
+        if let Some(process) = sys.process(process_id) {
+            process.kill();
+            log_to_frontend(
+                &window,
+                "update-log",
+                &format!("🛑 Terminated SteamCMD process (PID {}).", pid),
+            );
+        }
+    }
+
+    log_to_frontend(&window, "update-log", "⚠️ Update cancelled by user.");
+    let _ = window.emit("update-finished", serde_json::json!({ "success": false, "cancelled": true }));
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_server_files(
+    window: Window, 
+    install_path: String,
+    force_clean: Option<bool>,
+) -> Result<(), String> {
+    *UPDATE_CANCELLED.lock().await = false;
+
+    // By default, automatically clean the old appmanifest_2430930.acf file on every update
+    // so SteamCMD always downloads the latest build and avoids stale manifest caching.
+    let should_clean = force_clean.unwrap_or(true);
+    if should_clean {
+        log_to_frontend(
+            &window,
+            "update-log",
+            "🧹 [Auto-Clean Manifest] Deleting old appmanifest_2430930.acf to ensure Steam performs a fresh build check from CDN...",
+        );
+        let game_dir = get_game_install_dir(&install_path);
+        let candidates = [
+            game_dir.join("steamapps").join("appmanifest_2430930.acf"),
+            PathBuf::from(&install_path).join("steamapps").join("appmanifest_2430930.acf"),
+        ];
+        let mut removed = false;
+        for manifest_path in &candidates {
+            if manifest_path.exists() {
+                if let Ok(_) = fs::remove_file(manifest_path) {
+                    log_to_frontend(
+                        &window,
+                        "update-log",
+                        &format!("  > Deleted cached manifest: {:?}", manifest_path),
+                    );
+                    removed = true;
+                }
+            }
+        }
+        if !removed {
+            log_to_frontend(
+                &window,
+                "update-log",
+                "  > No previous appmanifest file found (clean installation state).",
+            );
+        }
+    }
+
     // Force usage of global SteamCMD
     let steamcmd_exe = match ensure_global_steamcmd(&window, "update-log").await {
         Ok(exe) => exe,
@@ -559,13 +735,19 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
     log_to_frontend(
         &window,
         "update-log",
-        &format!("✅ SteamCMD ready at {:?}. Starting update...", steamcmd_dir),
+        &format!("✅ [Step 1/4: Setup] SteamCMD verified at {:?}", steamcmd_dir),
     );
 
     // Install into /server/ subdirectory
     let game_install_dir = get_game_install_dir(&install_path);
     let install_dir_arg = game_install_dir.to_string_lossy().replace("\\", "/");
     
+    log_to_frontend(
+        &window,
+        "update-log",
+        &format!("📁 [Step 1/4: Setup] Target server directory: {}", install_dir_arg),
+    );
+
     let script_content = format!(
         "force_install_dir \"{}\"\nlogin anonymous\napp_update 2430930 validate\nquit\n",
         install_dir_arg
@@ -578,13 +760,29 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
         return Err(error_msg);
     }
 
+    log_to_frontend(
+        &window,
+        "update-log",
+        "🚀 [Step 2/4: Steam Connection] Launching SteamCMD for App 2430930 (ARK: Survival Ascended Dedicated Server)...",
+    );
+
     const MAX_RETRIES: u32 = 3;
     let mut last_error = String::new();
 
     for attempt in 1..=MAX_RETRIES {
+        if *UPDATE_CANCELLED.lock().await {
+            let _ = std::fs::remove_file(&script_path);
+            return Ok(());
+        }
+
         if attempt > 1 {
             log_to_frontend(&window, "update-log", &format!("\n⚠️ Update attempt {}/{} failed. Retrying...", attempt - 1, MAX_RETRIES));
             tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+
+        if *UPDATE_CANCELLED.lock().await {
+            let _ = std::fs::remove_file(&script_path);
+            return Ok(());
         }
 
         let mut cmd = Command::new(&steamcmd_exe);
@@ -603,6 +801,9 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
 
         match cmd.spawn() {
             Ok(mut child) => {
+                let pid = child.id();
+                *CURRENT_UPDATE_PID.lock().await = pid;
+
                 let stdout = child.stdout.take().expect("Failed stdout");
                 let stderr = child.stderr.take().expect("Failed stderr");
 
@@ -623,6 +824,12 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
                 });
 
                 let status = child.wait().await.map_err(|e| e.to_string());
+                *CURRENT_UPDATE_PID.lock().await = None;
+
+                if *UPDATE_CANCELLED.lock().await {
+                    let _ = std::fs::remove_file(&script_path);
+                    return Ok(());
+                }
 
                 match status {
                     Ok(s) => {
@@ -643,10 +850,14 @@ async fn update_server_files(window: Window, install_path: String) -> Result<(),
     }
 
     let _ = std::fs::remove_file(&script_path);
-    let err_msg = format!("\n❌ Update failed after {} attempts: {}", MAX_RETRIES, last_error);
-    log_to_frontend(&window, "update-log", &err_msg);
-    window.emit("update-finished", &serde_json::json!({ "success": false })).unwrap();
-    Err(err_msg)
+    if !*UPDATE_CANCELLED.lock().await {
+        let err_msg = format!("\n❌ Update failed after {} attempts: {}", MAX_RETRIES, last_error);
+        log_to_frontend(&window, "update-log", &err_msg);
+        window.emit("update-finished", &serde_json::json!({ "success": false })).unwrap();
+        Err(err_msg)
+    } else {
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -975,24 +1186,27 @@ async fn delete_backup(install_path: String, backup_filename: String) -> Result<
 #[tauri::command]
 async fn get_server_build_info(install_path: String) -> Result<String, String> {
     let game_dir = get_game_install_dir(&install_path);
-    // Check in /server/steamapps/...
-    let manifest_path = game_dir
-        .join("steamapps")
-        .join("appmanifest_2430930.acf");
-    
-    if manifest_path.exists() {
-        println!("Found manifest at: {:?}", manifest_path);
-        let content = fs::read_to_string(manifest_path).map_err(|e| e.to_string())?;
-        let re = Regex::new(r#""buildid"\s*"(\d+)""#).unwrap();
-        if let Some(caps) = re.captures(&content) {
-            if let Some(build_id) = caps.get(1) {
-                return Ok(build_id.as_str().to_string());
+    let candidates = [
+        game_dir.join("steamapps").join("appmanifest_2430930.acf"),
+        PathBuf::from(&install_path).join("steamapps").join("appmanifest_2430930.acf"),
+    ];
+
+    for manifest_path in &candidates {
+        if manifest_path.exists() {
+            if let Ok(content) = fs::read_to_string(manifest_path) {
+                let re = Regex::new(r#""buildid"\s*"(\d+)""#).unwrap();
+                if let Some(caps) = re.captures(&content) {
+                    if let Some(build_id) = caps.get(1) {
+                        return Ok(build_id.as_str().to_string());
+                    }
+                }
             }
         }
-        return Err("Could not find build ID in manifest file.".to_string());
     }
-    
-    Err(format!("App manifest file not found at: {:?}", manifest_path))
+
+    // When manifest file is deleted prior to an update or not yet installed,
+    // return an empty string instead of an error so no false error toast pops up.
+    Ok(String::new())
 }
 
 #[tauri::command]
@@ -1003,13 +1217,20 @@ async fn get_latest_server_build(window: Window) -> Result<String, String> {
     };
     let steamcmd_dir = get_global_steamcmd_path();
 
-    let output = Command::new(&steamcmd_exe)
-        .current_dir(&steamcmd_dir)
+    let mut cmd = Command::new(&steamcmd_exe);
+    cmd.current_dir(&steamcmd_dir)
         .arg("+login")
         .arg("anonymous")
         .arg("+app_info_print")
         .arg("2430930")
-        .arg("+quit")
+        .arg("+quit");
+
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW: prevents SteamCMD console window from popping up on release builds
+    }
+
+    let output = cmd
         .output()
         .await
         .map_err(|e| e.to_string())?;
@@ -1242,6 +1463,8 @@ fn main() {
             stop_ark_server,
             send_rcon_command,
             update_server_files,
+            cancel_server_update,
+            clean_server_appmanifest,
             update_map,
             update_mods,
             list_backups,
@@ -1310,4 +1533,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
