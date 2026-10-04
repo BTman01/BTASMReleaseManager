@@ -293,7 +293,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
       });
   }, []);
 
-  const onUpdate = useCallback(async (autoRestartAfter = false, targetProfileId?: string) => {
+  const onUpdate = useCallback(async (autoRestartAfter = false, targetProfileId?: string, forceCleanManifest = true) => {
     const profId = (typeof targetProfileId === 'string' && targetProfileId.trim())
         ? targetProfileId.trim()
         : activeProfileIdRef.current;
@@ -306,7 +306,11 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
 
     setIsUpdateFinished(false);
     updateProfile(profileToUpdate.id, { status: ServerStatus.Updating });
-    setUpdateLog(['Initializing server file update...']);
+    setUpdateLog([
+      forceCleanManifest 
+        ? 'Initializing server file update (appmanifest_2430930.acf will be auto-cleaned to ensure latest build check)...'
+        : 'Initializing server file update...'
+    ]);
     notificationService.sendNotification('Update Started', `Updating server files for ${profileToUpdate.profileName}.`);
     
     const rootPath = directoryService.getRootInstallPath(profileToUpdate.path);
@@ -314,6 +318,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         await invoke('update_server_files', { 
             installPath: rootPath,
             serverPath: rootPath,
+            forceClean: forceCleanManifest,
         });
     } catch (error: any) {
         shouldAutoRestartAfterUpdateRef.current = false;
@@ -323,6 +328,15 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         setIsUpdateFinished(true);
     }
   }, [updateProfile]);
+
+  const handleCancelUpdate = useCallback(async () => {
+    try {
+      setUpdateLog(prev => [...prev, '🛑 User requested update cancellation. Sending quit to SteamCMD...']);
+      await invoke('cancel_server_update');
+    } catch (e: any) {
+      setUpdateLog(prev => [...prev, `⚠️ Error while cancelling update: ${e}`]);
+    }
+  }, []);
 
   const executeServerStart = useCallback(async (profileIdToStart: string) => {
     const profileToStart = profilesRef.current.find(p => p.id === profileIdToStart);
@@ -852,7 +866,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
     setIsCheckingForUpdate(true);
     try {
         const [currentBuild, latestBuild] = await Promise.all([
-            invoke<string>('get_server_build_info', { installPath: rootPath, serverPath: rootPath }),
+            invoke<string>('get_server_build_info', { installPath: rootPath, serverPath: rootPath }).catch(() => ''),
             invoke<string>('get_latest_server_build', { installPath: rootPath, serverPath: rootPath }),
         ]);
         updateProfile(id, {
@@ -924,7 +938,10 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         }
     } catch (error) {
         console.error("Failed to check for updates:", error);
-        onShowToast(`Error checking for updates: ${error}`, 'error');
+        const errStr = String(error).toLowerCase();
+        if (!errStr.includes('manifest')) {
+            onShowToast(`Error checking for updates: ${error}`, 'error');
+        }
         updateProfile(id, { lastUpdateCheck: new Date().toISOString() });
     } finally {
         setIsCheckingForUpdate(false);
@@ -2100,6 +2117,8 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         id: modIdStr,
         name: mod.name,
         summary: mod.summary,
+        logoUrl: mod.logo?.url,
+        authors: Array.isArray(mod.authors) ? mod.authors.map(a => a.name).join(', ') : undefined,
     };
 
     const currentAnalysis = activeProfile.modAnalysis;
@@ -2608,7 +2627,9 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
           <UpdateProgressModal 
             log={updateLog} 
             isFinished={isUpdateFinished}
+            profileName={activeProfile?.profileName}
             onClose={() => updateProfile(activeProfileId!, { status: ServerStatus.Stopped })}
+            onCancelUpdate={handleCancelUpdate}
           />
         )
       }
@@ -2663,7 +2684,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                             onStart={() => onStart()} 
                             onStop={() => onStop()} 
                             onRestart={() => onRestart(false)}
-                            onUpdate={() => onUpdate(false)}
+                            onUpdate={(forceClean) => onUpdate(false, undefined, forceClean !== false)}
                             onInstall={() => {}}
                             onOpenTimedShutdown={() => setIsShutdownModalOpen(true)}
                             onCancelTimedShutdown={handleCancelTimedShutdown}

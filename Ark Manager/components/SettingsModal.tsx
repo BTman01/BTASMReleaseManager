@@ -161,18 +161,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.5.3'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.6.0'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v1.5.3 (Stop Button & Pre-Shutdown World Save Resolution)</p>
-                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
-                            <li><strong>Stop Button Non-Blocking Save:</strong> Fixed an issue where clicking the Stop button with "Save world before stop or restart" enabled would hang indefinitely and fail to shut down the server. When ARK writes save data to disk, RCON responses can be delayed or omitted; pre-shutdown <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> now executes with a strict 3.5-second safety timeout, guaranteeing that process termination is always triggered.</li>
-                            <li><strong>Instant Stopping State Transition:</strong> Clicking Stop now immediately updates the server status badge to <span className="text-amber-400 font-semibold">Stopping...</span> and locks the button to prevent redundant clicks or race conditions while the server shuts down.</li>
-                            <li><strong>Graceful Exit Handshake:</strong> Before issuing process kill commands, the manager now sends an RCON <code className="text-cyan-300 font-mono text-xs">DoExit</code> instruction with a 1-second timeout, allowing Unreal Engine to perform an orderly internal shutdown.</li>
-                            <li><strong>Reliable Backend Process Termination:</strong> Enhanced the backend stop routine to target <code className="text-cyan-300 font-mono text-xs">ArkAscendedServer.exe</code> by both PID and process image name with tree-kill enforcement (<code className="text-cyan-300 font-mono text-xs">/F /T</code>), ensuring unresponsive or zombie server instances are cleanly terminated.</li>
-                            <li><strong>Backend RCON Socket Timeout Protection:</strong> Wrapped all backend RCON command transmissions with an asynchronous 4-second timeout, preventing hanging TCP sockets from ever freezing backend worker threads.</li>
+                        <p className="font-semibold text-gray-200">v1.6.0 (Automated Clean Updates, Silent Background Checks & Console Window Suppression)</p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Automated Clean Appmanifest Removal:</strong> SteamCMD now automatically purges the cached <code className="text-cyan-300 font-mono text-xs">appmanifest_2430930.acf</code> file by default before every update and auto-update. This permanently eliminates the common SteamCMD issue where cached manifests cause it to report "already up to date" even when a new patch is published on Steam CDN.</li>
+                            <li><strong>Streamlined Hands-Off Update Controls:</strong> Removed the manual auto-clean broom split-button and modal re-check buttons. Manual updates, automatic background updates, scheduled reboot updates, and Discord bot update commands now execute clean manifest deletion automatically with zero extra user interaction.</li>
+                            <li><strong>Eliminated False "Manifest Missing" Error Toasts:</strong> Enhanced <code className="text-cyan-300 font-mono text-xs">get_server_build_info</code> and update check handlers to gracefully handle missing or wiped manifests, preventing misleading "App manifest file not found" warning toasts from appearing when updates are triggered.</li>
+                            <li><strong>Silent SteamCMD Startup Checks:</strong> Added the Windows <code className="text-cyan-300 font-mono text-xs">CREATE_NO_WINDOW</code> (<code className="text-cyan-300 font-mono text-xs">0x08000000</code>) flag to background SteamCMD build version queries. When launching the release build, SteamCMD update checks now run completely in the background without popping up an unwanted black DOS / command prompt window.</li>
+                            <li><strong>Silent Process Management:</strong> Applied <code className="text-cyan-300 font-mono text-xs">CREATE_NO_WINDOW</code> flags to Windows <code className="text-cyan-300 font-mono text-xs">taskkill</code> operations, eliminating any brief command prompt flashes when stopping, restarting, or terminating server processes.</li>
+                            <li><strong>Non-Blocking Pre-Shutdown World Saves:</strong> Reinforced pre-shutdown <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> with a 3.5s safety timeout, instant <span className="text-amber-400 font-semibold">Stopping...</span> state transitions, graceful <code className="text-cyan-300 font-mono text-xs">DoExit</code> handshakes, and reliable process tree termination.</li>
                         </ul>
                     </div>
                 </div>
@@ -196,6 +197,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.5.3 (Stop Button & Pre-Shutdown World Save Resolution)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
+                                    <li><strong>Stop Button Non-Blocking Save:</strong> Fixed an issue where clicking the Stop button with "Save world before stop or restart" enabled would hang indefinitely and fail to shut down the server. Pre-shutdown <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> now executes with a strict 3.5-second safety timeout, guaranteeing that process termination is always triggered.</li>
+                                    <li><strong>Instant Stopping State Transition:</strong> Clicking Stop now immediately updates the server status badge to <span className="text-amber-400 font-semibold">Stopping...</span> and locks the button to prevent redundant clicks or race conditions.</li>
+                                    <li><strong>Graceful Exit Handshake:</strong> Sends an RCON <code className="text-cyan-300 font-mono text-xs">DoExit</code> instruction with a 1-second timeout before issuing process kill commands, allowing Unreal Engine to perform an orderly internal shutdown.</li>
+                                    <li><strong>Reliable Backend Process Termination:</strong> Targets <code className="text-cyan-300 font-mono text-xs">ArkAscendedServer.exe</code> by both PID and image name with tree-kill enforcement (<code className="text-cyan-300 font-mono text-xs">/F /T</code>).</li>
+                                    <li><strong>Backend RCON Socket Timeout Protection:</strong> Wrapped backend RCON command transmissions with an asynchronous 4-second timeout, preventing hanging TCP sockets from freezing threads.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v1.5.2 (Startup Diagnostics, Error Reporting & Console Polish)</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">

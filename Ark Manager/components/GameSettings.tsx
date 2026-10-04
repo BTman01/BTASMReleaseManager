@@ -13,7 +13,6 @@ interface GameSettingsProps {
 
 type SettingsCategory = 
   | 'all'
-  | 'custom_ini'
   | 'general_xp'
   | 'breeding'
   | 'player'
@@ -24,7 +23,6 @@ type SettingsCategory =
 
 const CATEGORIES: { id: SettingsCategory; label: string; icon: string }[] = [
   { id: 'all', label: 'All Settings', icon: '⚡' },
-  { id: 'custom_ini', label: 'Dino Spawns & Custom INI', icon: '🧬' },
   { id: 'general_xp', label: 'General & XP Rates', icon: '📈' },
   { id: 'breeding', label: 'Breeding & Maturation', icon: '🥚' },
   { id: 'player', label: 'Player Rules & Drains', icon: '👤' },
@@ -138,6 +136,7 @@ const CheckboxInput: React.FC<{
 );
 
 const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onSave, isSaving = false, isActionInProgress }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'general' | 'custom_advanced'>('general');
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -187,31 +186,70 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
             </button>
           )}
 
-          {/* Search Bar */}
-          <div className="w-full sm:w-64 relative">
-            <input
-              type="text"
-              placeholder="Search settings..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 pl-9 text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-            />
-            <svg className="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2.5 text-xs text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          {/* Search Bar (shown for General INI settings) */}
+          {activeSubTab === 'general' && (
+            <div className="w-full sm:w-64 relative">
+              <input
+                type="text"
+                placeholder="Search settings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 pl-9 text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+              />
+              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2.5 text-xs text-gray-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Category Tabs */}
+      {/* Sub-Tabs Navigation */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-700/80 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('general')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm ${
+            activeSubTab === 'general'
+              ? 'bg-cyan-600 text-white shadow-cyan-500/20'
+              : 'bg-gray-800/80 text-gray-300 hover:text-white hover:bg-gray-700/80 border border-gray-700/60'
+          }`}
+        >
+          <span>⚙️</span>
+          <span>General INI Configurations</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('custom_advanced')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm ${
+            activeSubTab === 'custom_advanced'
+              ? 'bg-cyan-600 text-white shadow-cyan-500/20'
+              : 'bg-gray-800/80 text-gray-300 hover:text-white hover:bg-gray-700/80 border border-gray-700/60'
+          }`}
+        >
+          <span>🧬</span>
+          <span>Custom Dino Spawn Entries & INI Configuration</span>
+          {(config.npcSpawnEntries || []).length > 0 && (
+            <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-700 font-mono">
+              {(config.npcSpawnEntries || []).length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* TAB 1: General INI Configurations */}
+      {activeSubTab === 'general' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Category Tabs */}
       <div className="flex flex-wrap gap-2 pb-2">
         {CATEGORIES.map((cat) => {
           const isActive = activeCategory === cat.id;
@@ -231,34 +269,6 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
           );
         })}
       </div>
-
-      {/* SECTION: Custom Dino Spawns & Custom INI Lines */}
-      {(activeCategory === 'all' || activeCategory === 'custom_ini' || isMatching('spawn griffin wyvern dino custom ini configaddnpcspawnentriescontainer')) && (
-        <div className="p-6 bg-gray-800/50 backdrop-blur-md rounded-lg shadow-lg border border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-bold text-cyan-400 flex items-center space-x-2">
-                <span>🧬</span>
-                <span>Custom Dino Spawn Entries & INI Configuration</span>
-              </h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Add custom creature spawns (e.g. Griffins, Wyverns, Snow Owls) to any map via <code className="text-purple-300">ConfigAddNPCSpawnEntriesContainer</code> or append raw lines to <code className="text-cyan-300">GameUserSettings.ini</code> and <code className="text-purple-300">Game.ini</code>.
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="px-2.5 py-1 text-xs font-mono rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
-                {(config.npcSpawnEntries || []).length} Custom Spawns
-              </span>
-            </div>
-          </div>
-
-          <CustomSpawnAndIniSettings
-            config={config}
-            onConfigChange={onConfigChange}
-            disabled={isActionInProgress}
-          />
-        </div>
-      )}
 
       {/* SECTION 1: General Rates & XP */}
       {(activeCategory === 'all' || activeCategory === 'general_xp') && (
@@ -1216,6 +1226,38 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
           </div>
         </div>
       )}
+    </div>
+  )}
+
+  {/* TAB 2: Custom Dino Spawn Entries & INI Configuration */}
+  {activeSubTab === 'custom_advanced' && (
+    <div className="space-y-6 animate-fade-in">
+      <div className="p-6 bg-gray-800/50 backdrop-blur-md rounded-lg shadow-lg border border-gray-700">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-cyan-400 flex items-center space-x-2">
+              <span>🧬</span>
+              <span>Custom Dino Spawn Entries & Advanced INI Configuration</span>
+            </h3>
+            <p className="text-xs text-gray-400 mt-1 max-w-2xl leading-relaxed">
+              Designed for advanced configuration: add custom creature spawns (such as Griffins, Wyverns, Snow Owls, Deinonychus) to any map via <code className="text-purple-300 font-mono text-[11px]">ConfigAddNPCSpawnEntriesContainer</code>, append raw custom lines directly into <code className="text-cyan-300 font-mono text-[11px]">GameUserSettings.ini</code> and <code className="text-purple-300 font-mono text-[11px]">Game.ini</code>, or configure custom launch parameters.
+            </p>
+          </div>
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <span className="px-3 py-1 text-xs font-mono rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-semibold">
+              {(config.npcSpawnEntries || []).length} Custom {(config.npcSpawnEntries || []).length === 1 ? 'Spawn' : 'Spawns'}
+            </span>
+          </div>
+        </div>
+
+        <CustomSpawnAndIniSettings
+          config={config}
+          onConfigChange={onConfigChange}
+          disabled={isActionInProgress}
+        />
+      </div>
+    </div>
+  )}
 
       {/* Sticky Bottom Save Bar */}
       {onSave && (

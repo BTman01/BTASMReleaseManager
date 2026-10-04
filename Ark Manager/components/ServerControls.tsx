@@ -7,7 +7,7 @@ interface ServerControlsProps {
   onStart: () => void;
   onStop: () => void;
   onRestart: () => void;
-  onUpdate: () => void;
+  onUpdate: (forceClean?: boolean) => void;
   onInstall: () => void;
   onOpenTimedShutdown: () => void;
   onCancelTimedShutdown: () => void;
