@@ -1,0 +1,187 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information and roles",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID (auth UID)"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account creation timestamp"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "moderator", "viewer"],
+          "description": "User authorization role"
+        }
+      },
+      "required": ["id", "email", "createdAt", "role"]
+    },
+    "ServerInstance": {
+      "title": "Server Instance",
+      "description": "ARK server host instance telemetry and remote bridge",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique server instance ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "serverName": {
+          "type": "string",
+          "description": "Server profile or session name"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Running", "Stopped", "Starting", "Stopping", "Restarting", "Updating", "Error"],
+          "description": "Current server status"
+        },
+        "playerCount": {
+          "type": "number",
+          "description": "Current player count"
+        },
+        "maxPlayers": {
+          "type": "number",
+          "description": "Maximum player slots"
+        },
+        "map": {
+          "type": "string",
+          "description": "Current server map"
+        },
+        "ip": {
+          "type": "string",
+          "description": "Server public or local IP"
+        },
+        "nextScheduledRestart": {
+          "type": "string",
+          "description": "ISO timestamp of the next scheduled server restart"
+        },
+        "scheduledRestartEnabled": {
+          "type": "boolean",
+          "description": "Whether scheduled daily restart is enabled"
+        },
+        "scheduledRestartTime": {
+          "type": "string",
+          "description": "Scheduled restart time in HH:mm"
+        },
+        "lastBackupTime": {
+          "type": "string",
+          "description": "Timestamp of most recent backup"
+        },
+        "currentBuildId": {
+          "type": "string",
+          "description": "Current installed game server build ID"
+        },
+        "latestBuildId": {
+          "type": "string",
+          "description": "Latest available game server build ID"
+        },
+        "updateAvailable": {
+          "type": "boolean",
+          "description": "Whether a newer server build is available"
+        },
+        "onlinePlayers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "steamId": { "type": "string" }
+            }
+          },
+          "description": "List of currently connected players on this server"
+        },
+        "recentChat": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Recent in-game chat and log lines"
+        },
+        "lastSeen": {
+          "type": "string",
+          "description": "Last heartbeat timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["id", "userId", "serverName", "status", "updatedAt"]
+    },
+    "RemoteCommand": {
+      "title": "Remote Command",
+      "description": "Command dispatched from mobile or remote client to be executed by desktop host",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique command ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Author UID"
+        },
+        "targetProfileId": {
+          "type": "string",
+          "description": "Target server profile ID or 'all'"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["START_SERVER", "STOP_SERVER", "RESTART_SERVER", "SAVE_WORLD", "BROADCAST_MESSAGE", "KICK_PLAYER", "CREATE_BACKUP", "UPDATE_SERVER", "SEND_RCON_COMMAND", "GET_CHAT"],
+          "description": "Action to execute on server"
+        },
+        "payload": {
+          "type": "string",
+          "description": "Optional payload parameters such as broadcast message or player ID"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "executing", "completed", "failed"],
+          "description": "Command execution lifecycle status"
+        },
+        "resultMessage": {
+          "type": "string",
+          "description": "Output message or error returned after execution"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Command submission timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["id", "userId", "targetProfileId", "action", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document containing authentication info and account role"
+    },
+    "/users/{userId}/serverInstances/{instanceId}": {
+      "schema": "ServerInstance",
+      "description": "Server instances managed by the user, storing telemetry and remote state"
+    },
+    "/users/{userId}/commands/{commandId}": {
+      "schema": "RemoteCommand",
+      "description": "Remote commands queued for execution by the desktop server host"
+    }
+  }
+}

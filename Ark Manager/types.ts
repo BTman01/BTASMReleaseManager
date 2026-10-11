@@ -168,6 +168,7 @@ export interface ServerProfile {
   latestBuildId?: string;
 
   lastUpdateCheck?: string; // ISO String
+  lastBackupTime?: string; // ISO String of most recent backup
   
   // Real-time Stats
   uptime?: number; // in seconds

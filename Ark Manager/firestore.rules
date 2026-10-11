@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['id', 'email', 'createdAt', 'role'])
+        && data.keys().hasOnly(['id', 'email', 'displayName', 'createdAt', 'role'])
+        && data.id == userId
+        && data.email is string
+        && data.email.size() > 3
+        && data.email.size() <= 254
+        && data.createdAt is string
+        && data.createdAt.size() > 0
+        && data.createdAt.size() <= 40
+        && (data.role in ['admin', 'moderator', 'viewer'])
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100));
+    }
+
+    function isValidServerInstance(data, userId, instanceId) {
+      return data.keys().hasAll(['id', 'userId', 'serverName', 'status', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'userId', 'serverName', 'status', 'playerCount', 'maxPlayers', 'map', 'ip', 'lastSeen', 'updatedAt', 'nextScheduledRestart', 'scheduledRestartEnabled', 'scheduledRestartTime', 'lastBackupTime', 'currentBuildId', 'latestBuildId', 'updateAvailable', 'onlinePlayers', 'recentChat'])
+        && data.id == instanceId
+        && data.userId == userId
+        && data.serverName is string
+        && data.serverName.size() > 0
+        && data.serverName.size() <= 128
+        && (data.status in ['Running', 'Stopped', 'Starting', 'Stopping', 'Restarting', 'Updating', 'Error'])
+        && data.updatedAt is string
+        && data.updatedAt.size() <= 40
+        && (!('playerCount' in data) || data.playerCount is number)
+        && (!('maxPlayers' in data) || data.maxPlayers is number)
+        && (!('map' in data) || (data.map is string && data.map.size() <= 64))
+        && (!('ip' in data) || (data.ip is string && data.ip.size() <= 64))
+        && (!('lastSeen' in data) || (data.lastSeen is string && data.lastSeen.size() <= 40))
+        && (!('nextScheduledRestart' in data) || (data.nextScheduledRestart is string && data.nextScheduledRestart.size() <= 50))
+        && (!('scheduledRestartEnabled' in data) || data.scheduledRestartEnabled is bool)
+        && (!('scheduledRestartTime' in data) || (data.scheduledRestartTime is string && data.scheduledRestartTime.size() <= 20))
+        && (!('lastBackupTime' in data) || (data.lastBackupTime is string && data.lastBackupTime.size() <= 50))
+        && (!('currentBuildId' in data) || (data.currentBuildId is string && data.currentBuildId.size() <= 64))
+        && (!('latestBuildId' in data) || (data.latestBuildId is string && data.latestBuildId.size() <= 64))
+        && (!('updateAvailable' in data) || data.updateAvailable is bool)
+        && (!('onlinePlayers' in data) || (data.onlinePlayers is list && data.onlinePlayers.size() <= 200))
+        && (!('recentChat' in data) || (data.recentChat is list && data.recentChat.size() <= 100));
+    }
+
+    function isValidRemoteCommand(data, userId, commandId) {
+      return data.keys().hasAll(['id', 'userId', 'targetProfileId', 'action', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'userId', 'targetProfileId', 'action', 'payload', 'status', 'resultMessage', 'createdAt', 'updatedAt'])
+        && data.id == commandId
+        && data.userId == userId
+        && data.targetProfileId is string
+        && data.targetProfileId.size() > 0
+        && data.targetProfileId.size() <= 64
+        && (data.action in ['START_SERVER', 'STOP_SERVER', 'RESTART_SERVER', 'SAVE_WORLD', 'BROADCAST_MESSAGE', 'KICK_PLAYER', 'CREATE_BACKUP', 'UPDATE_SERVER', 'SEND_RCON_COMMAND', 'GET_CHAT'])
+        && (data.status in ['pending', 'executing', 'completed', 'failed'])
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && data.updatedAt is string
+        && data.updatedAt.size() <= 40
+        && (!('payload' in data) || (data.payload is string && data.payload.size() <= 1000))
+        && (!('resultMessage' in data) || (data.resultMessage is string && data.resultMessage.size() <= 4000));
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // User profile documents (PII isolation: user can only read and write their own profile)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Deny broad enumeration of all users
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Server instances subcollection
+      match /serverInstances/{instanceId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(instanceId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(instanceId) && isValidServerInstance(request.resource.data, userId, instanceId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(instanceId) && isValidServerInstance(request.resource.data, userId, instanceId);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(instanceId);
+      }
+
+      // Remote commands subcollection (for mobile command dispatch & desktop execution)
+      match /commands/{commandId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(commandId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(commandId) && isValidRemoteCommand(request.resource.data, userId, commandId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(commandId) && isValidRemoteCommand(request.resource.data, userId, commandId);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(commandId);
+      }
+    }
+
+    // Connection testing endpoint for boot verification
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
