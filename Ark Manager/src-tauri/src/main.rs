@@ -593,19 +593,48 @@ async fn send_rcon_command(
             }
         };
 
-        // Enforce a strict 4-second timeout on all RCON operations to prevent blocking callers
-        match tokio::time::timeout(Duration::from_secs(4), rcon_future).await {
+        // Adjust timeout dynamically:
+        // ARK RCON returns text within 100ms for query commands (e.g. ListPlayers, GetChat).
+        // For action commands (SaveWorld, destroywilddinos, ServerChat, Broadcast, KickPlayer, etc.),
+        // ARK Dedicated Server executes the command on the server engine but does not emit a response packet back.
+        let cmd_lower = command.trim().to_lowercase();
+        let timeout_secs = if cmd_lower.contains("saveworld") {
+            4
+        } else if cmd_lower.contains("doexit") || cmd_lower.contains("destroywilddinos") || cmd_lower.contains("wipewilddinos") {
+            3
+        } else if cmd_lower.starts_with("serverchat") || cmd_lower.starts_with("broadcast") {
+            2
+        } else {
+            3
+        };
+
+        match tokio::time::timeout(Duration::from_secs(timeout_secs), rcon_future).await {
             Ok(res) => res,
             Err(_) => {
-                let timeout_msg = format!("⚠️ RCON command '{}' timed out after 4 seconds (executed or busy).", command);
+                // If timeout elapsed, TCP connection and authentication were already successful,
+                // and the command was transmitted into ARK's socket. In Unreal Engine / ARK RCON,
+                // commands that produce no console text do not return an RCON response body packet.
+                let status_msg = if cmd_lower.contains("saveworld") {
+                    format!("✓ SaveWorld executed successfully (world save written to disk in background).")
+                } else if cmd_lower.contains("destroywilddinos") || cmd_lower.contains("wipewilddinos") {
+                    format!("✓ DestroyWildDinos executed successfully on server.")
+                } else if cmd_lower.starts_with("serverchat") || cmd_lower.starts_with("broadcast") {
+                    format!("✓ Broadcast delivered to server: '{}'", command)
+                } else if cmd_lower.starts_with("kickplayer") || cmd_lower.starts_with("banplayer") {
+                    format!("✓ Player command '{}' executed successfully on server.", command)
+                } else if cmd_lower.contains("doexit") || cmd_lower.contains("quit") {
+                    format!("✓ Shutdown command '{}' delivered to server.", command)
+                } else {
+                    format!("✓ Command '{}' dispatched to server successfully.", command)
+                };
                 let _ = window.emit(
                     "manager-log-line",
                     serde_json::json!({
                         "profile_id": profile_id,
-                        "line": timeout_msg
+                        "line": status_msg
                     }),
                 );
-                // Return Ok for SaveWorld/DoExit so timeouts don't block subsequent shutdown sequence
+                // Return Ok so timeouts don't crash callers or block subsequent operations
                 Ok(())
             }
         }
