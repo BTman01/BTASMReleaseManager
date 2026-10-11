@@ -25,6 +25,15 @@ import ClusterVisualization from './ClusterVisualization';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import { ServerStartErrorModal } from './ServerStartErrorModal';
+import MobileBridgeModal from './MobileBridgeModal';
+import {
+  auth,
+  syncServerTelemetry,
+  subscribeToPendingCommands,
+  updateCommandStatus,
+  RemoteCommand,
+  calculateNextScheduledRestart,
+} from '../services/firebase';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import * as fs from '@tauri-apps/plugin-fs';
 import { join, resolve } from '@tauri-apps/api/path';
@@ -37,6 +46,9 @@ interface DashboardProps {
   profileToSelect: string | null;
   onUpdateAppSettings: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
   onShowToast: (message: string, type: 'success' | 'error') => void;
+  isMobileBridgeOpen?: boolean;
+  onCloseMobileBridge?: () => void;
+  currentUser?: { uid?: string; email?: string | null; displayName?: string | null } | null;
 }
 
 const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '127.0.0.1'): ServerConfig => ({
@@ -182,7 +194,16 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     discordBotChannelId: '',
 });
 
-const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, profileToSelect, onUpdateAppSettings, onShowToast }) => {
+const Dashboard: React.FC<DashboardProps> = ({
+  appSettings,
+  setNotifications,
+  profileToSelect,
+  onUpdateAppSettings,
+  onShowToast,
+  isMobileBridgeOpen,
+  onCloseMobileBridge,
+  currentUser,
+}) => {
   const [profiles, setProfiles] = useState<ServerProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'config' | 'mods' | 'gameSettings' | 'clustering' | 'analytics' | 'backups' | 'serverManagement' | 'playerManagement' | 'console'>('config');
@@ -214,6 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
   const [playerListsByProfile, setPlayerListsByProfile] = useState<Record<string, PlayerInfo[]>>({});
   const playerListsByProfileRef = useRef<Record<string, PlayerInfo[]>>({});
   playerListsByProfileRef.current = playerListsByProfile;
+  const recentChatLogsRef = useRef<Record<string, string[]>>({});
   const playerList = useMemo(() => (activeProfileId ? playerListsByProfile[activeProfileId] || [] : []), [playerListsByProfile, activeProfileId]);
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
 
@@ -289,6 +311,46 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
       setProfiles(prevProfiles => {
           const newProfiles = prevProfiles.map(p => p.id === id ? { ...p, ...updates } : p);
           directoryService.saveProfiles(newProfiles);
+
+          // Synchronize telemetry to cloud account for remote/mobile bridge
+          if (auth.currentUser) {
+              const currentProf = newProfiles.find(p => p.id === id);
+              if (currentProf) {
+                  let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error' = 'Stopped';
+                  if (currentProf.status === ServerStatus.Running) mappedStatus = 'Running';
+                  else if (currentProf.status === ServerStatus.Starting) mappedStatus = 'Starting';
+                  else if (currentProf.status === ServerStatus.Stopping) mappedStatus = 'Stopping';
+                  else if (currentProf.status === ServerStatus.Restarting) mappedStatus = 'Restarting';
+                  else if (currentProf.status === ServerStatus.Updating) mappedStatus = 'Updating';
+                  else if (currentProf.status === ServerStatus.Error) mappedStatus = 'Error';
+                  else mappedStatus = 'Stopped';
+
+                  const nextRestart = calculateNextScheduledRestart(
+                      currentProf.config?.scheduledRestartEnabled,
+                      currentProf.config?.scheduledRestartTime,
+                      currentProf.id === activeProfileIdRef.current ? activeRestartEndTime : null
+                  );
+
+                  syncServerTelemetry(auth.currentUser.uid, id, {
+                      serverName: currentProf.profileName || 'ARK Server',
+                      status: mappedStatus,
+                      playerCount: currentProf.playerCount ?? 0,
+                      maxPlayers: currentProf.config?.maxPlayers ?? 70,
+                      map: currentProf.config?.map || 'TheIsland_WP',
+                      ip: currentProf.config?.rconIp || '',
+                      nextScheduledRestart: nextRestart,
+                      scheduledRestartEnabled: currentProf.config?.scheduledRestartEnabled ?? false,
+                      scheduledRestartTime: currentProf.config?.scheduledRestartTime || '04:00',
+                      lastBackupTime: currentProf.lastBackupTime || '',
+                      currentBuildId: currentProf.currentBuildId || '',
+                      latestBuildId: currentProf.latestBuildId || '',
+                      updateAvailable: !!(currentProf.currentBuildId && currentProf.latestBuildId && currentProf.currentBuildId !== currentProf.latestBuildId),
+                      onlinePlayers: (playerListsByProfileRef.current[id] || []).map(p => ({ name: p.name, steamId: p.steamId })),
+                      recentChat: recentChatLogsRef.current[id] || [],
+                  });
+              }
+          }
+
           return newProfiles;
       });
   }, []);
@@ -648,7 +710,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                         command: 'SaveWorld',
                     });
                     const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('SaveWorld timeout (3.5s elapsed, continuing with stop)')), 3500)
+                        setTimeout(() => reject(new Error('SaveWorld timeout (8s elapsed, continuing with stop)')), 8000)
                     );
                     await Promise.race([savePromise, timeoutPromise]);
                     lastSaveWorldTimeRef.current[profileId] = Date.now();
@@ -726,7 +788,7 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                         command: 'SaveWorld',
                     });
                     const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('SaveWorld timeout (3.5s elapsed, continuing with restart)')), 3500)
+                        setTimeout(() => reject(new Error('SaveWorld timeout (8s elapsed, continuing with restart)')), 8000)
                     );
                     await Promise.race([savePromise, timeoutPromise]);
                     lastSaveWorldTimeRef.current[id] = Date.now();
@@ -827,6 +889,363 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
             console.error("Error sending status response to discord:", e);
         }
     }, []);
+
+    // Phase 2: Live Remote Command Execution Engine (Mobile Dispatch Executor)
+    const handleExecuteRemoteCommand = useCallback(async (cmd: RemoteCommand) => {
+        if (!auth.currentUser) return;
+        const userId = auth.currentUser.uid;
+        const { id: commandId, targetProfileId, action, payload } = cmd;
+
+        setManagerLog(prev => [
+            ...prev,
+            `[Mobile Bridge] 📱 Incoming command: ${action} for profile "${targetProfileId}"`
+        ]);
+
+        await updateCommandStatus(userId, commandId, 'executing', 'Executing on host PC...');
+
+        const targetProfile = profilesRef.current.find(p => p.id === targetProfileId) || profilesRef.current[0];
+
+        try {
+            if (!targetProfile) {
+                throw new Error(`Target profile "${targetProfileId}" not found on host machine.`);
+            }
+
+            switch (action) {
+                case 'START_SERVER':
+                    if (targetProfile.status === ServerStatus.Running || targetProfile.status === ServerStatus.Starting) {
+                        await updateCommandStatus(userId, commandId, 'completed', 'Server is already running or starting.');
+                        setManagerLog(prev => [...prev, `[Mobile Bridge] Server "${targetProfile.profileName}" is already running.`]);
+                        return;
+                    }
+                    await executeServerStart(targetProfile.id);
+                    await updateCommandStatus(userId, commandId, 'completed', `Server "${targetProfile.profileName}" start initiated.`);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ Server "${targetProfile.profileName}" start initiated.`]);
+                    break;
+
+                case 'STOP_SERVER':
+                    if (targetProfile.status === ServerStatus.Stopped) {
+                        await updateCommandStatus(userId, commandId, 'completed', 'Server is already stopped.');
+                        setManagerLog(prev => [...prev, `[Mobile Bridge] Server "${targetProfile.profileName}" is already stopped.`]);
+                        return;
+                    }
+                    await onStop(targetProfile.id);
+                    await updateCommandStatus(userId, commandId, 'completed', `Server "${targetProfile.profileName}" stop initiated.`);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ Server "${targetProfile.profileName}" stop initiated.`]);
+                    break;
+
+                case 'RESTART_SERVER':
+                    await onRestart(false, targetProfile.id);
+                    await updateCommandStatus(userId, commandId, 'completed', `Server "${targetProfile.profileName}" restart initiated.`);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ Server "${targetProfile.profileName}" restart initiated.`]);
+                    break;
+
+                case 'SAVE_WORLD':
+                    if (targetProfile.status !== ServerStatus.Running) {
+                        throw new Error(`Cannot save world: Server "${targetProfile.profileName}" is not running.`);
+                    }
+                    await invoke('send_rcon_command', {
+                        profileId: targetProfile.id,
+                        command: 'SaveWorld',
+                    });
+                    await updateCommandStatus(userId, commandId, 'completed', 'World saved successfully via RCON.');
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ SaveWorld executed successfully on "${targetProfile.profileName}".`]);
+                    break;
+
+                case 'BROADCAST_MESSAGE':
+                    if (targetProfile.status !== ServerStatus.Running) {
+                        throw new Error(`Cannot broadcast: Server "${targetProfile.profileName}" is not running.`);
+                    }
+                    const msg = (payload && payload.trim()) || 'Server notification';
+                    await invoke('send_rcon_command', {
+                        profileId: targetProfile.id,
+                        command: `ServerChat ${msg}`,
+                    });
+                    await updateCommandStatus(userId, commandId, 'completed', `Broadcast sent: "${msg}"`);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] 📢 Broadcast sent: "${msg}"`]);
+                    break;
+
+                case 'KICK_PLAYER':
+                    if (targetProfile.status !== ServerStatus.Running) {
+                        throw new Error(`Cannot kick player: Server "${targetProfile.profileName}" is not running.`);
+                    }
+                    if (!payload || !payload.trim()) {
+                        throw new Error('Player identifier required.');
+                    }
+                    await invoke('send_rcon_command', {
+                        profileId: targetProfile.id,
+                        command: `KickPlayer ${payload.trim()}`,
+                    });
+                    await updateCommandStatus(userId, commandId, 'completed', `Kick command issued for player "${payload.trim()}".`);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] 👢 KickPlayer command issued for "${payload.trim()}".`]);
+                    break;
+
+                case 'CREATE_BACKUP': {
+                    if (!targetProfile.path) {
+                        throw new Error(`Cannot backup: Profile "${targetProfile.profileName}" has no install path configured.`);
+                    }
+                    const rootPath = directoryService.getRootInstallPath(targetProfile.path);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] 💾 Starting backup for "${targetProfile.profileName}"...`]);
+
+                    // If server is currently running and RCON is available, save world first so backup captures latest player progress
+                    if (targetProfile.status === ServerStatus.Running && targetProfile.config?.bEnableRcon) {
+                        try {
+                            await invoke('send_rcon_command', {
+                                profileId: targetProfile.id,
+                                command: 'SaveWorld',
+                            });
+                            setManagerLog(prev => [...prev, `[Mobile Bridge] 💾 Pre-backup SaveWorld executed via RCON.`]);
+                        } catch (rconErr) {
+                            console.warn('[Mobile Bridge] Pre-backup SaveWorld error:', rconErr);
+                        }
+                    }
+
+                    await invoke('create_backup', { installPath: rootPath, serverPath: rootPath });
+                    const backupTimestamp = new Date().toISOString();
+                    updateProfile(targetProfile.id, { lastBackupTime: backupTimestamp });
+
+                    // If backing up the active profile, refresh the desktop backup manager table
+                    if (targetProfile.id === activeProfileIdRef.current) {
+                        try {
+                            const result: BackupInfo[] = await invoke('list_backups', { installPath: rootPath, serverPath: rootPath });
+                            setBackups(result);
+                        } catch (listErr) {
+                            console.warn('[Mobile Bridge] Failed to refresh local backup list:', listErr);
+                        }
+                    }
+
+                    // Immediately broadcast updated backup timestamp to Firestore telemetry
+                    const nextRestart = calculateNextScheduledRestart(
+                        targetProfile.config?.scheduledRestartEnabled,
+                        targetProfile.config?.scheduledRestartTime,
+                        targetProfile.id === activeProfileIdRef.current ? activeRestartEndTime : null
+                    );
+                    await syncServerTelemetry(userId, targetProfile.id, {
+                        serverName: targetProfile.profileName || 'ARK Server',
+                        status: targetProfile.status === ServerStatus.Running ? 'Running' : 'Stopped',
+                        playerCount: targetProfile.playerCount ?? 0,
+                        maxPlayers: targetProfile.config?.maxPlayers ?? 70,
+                        map: targetProfile.config?.map || 'TheIsland_WP',
+                        ip: targetProfile.config?.rconIp || '',
+                        nextScheduledRestart: nextRestart,
+                        scheduledRestartEnabled: targetProfile.config?.scheduledRestartEnabled ?? false,
+                        scheduledRestartTime: targetProfile.config?.scheduledRestartTime || '04:00',
+                        lastBackupTime: backupTimestamp,
+                        currentBuildId: targetProfile.currentBuildId || '',
+                        latestBuildId: targetProfile.latestBuildId || '',
+                        updateAvailable: !!(targetProfile.currentBuildId && targetProfile.latestBuildId && targetProfile.currentBuildId !== targetProfile.latestBuildId),
+                    });
+
+                    await updateCommandStatus(userId, commandId, 'completed', `Backup created successfully at ${new Date().toLocaleTimeString()}.`);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ Backup completed for "${targetProfile.profileName}".`]);
+                    notificationService.sendNotification('Remote Backup Completed', `Backup successfully created for "${targetProfile.profileName}".`);
+                    break;
+                }
+
+                case 'UPDATE_SERVER': {
+                    if (!targetProfile.path) {
+                        throw new Error(`Cannot update: Profile "${targetProfile.profileName}" has no install path configured.`);
+                    }
+                    if (targetProfile.status === ServerStatus.Updating) {
+                        await updateCommandStatus(userId, commandId, 'completed', `Server "${targetProfile.profileName}" is already updating.`);
+                        setManagerLog(prev => [...prev, `[Mobile Bridge] Server "${targetProfile.profileName}" is already updating.`]);
+                        return;
+                    }
+
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ⬇️ Starting game update for "${targetProfile.profileName}"...`]);
+
+                    if (targetProfile.status === ServerStatus.Running) {
+                        // Gracefully announce, save world, stop server, update, then auto-restart!
+                        if (targetProfile.config?.bEnableRcon) {
+                            try {
+                                await invoke('send_rcon_command', {
+                                    profileId: targetProfile.id,
+                                    command: 'ServerChat Server update initiated remotely. Saving world and shutting down for update...',
+                                });
+                                await invoke('send_rcon_command', {
+                                    profileId: targetProfile.id,
+                                    command: 'SaveWorld',
+                                });
+                            } catch (rconErr) {
+                                console.warn('[Mobile Bridge] Pre-update RCON error:', rconErr);
+                            }
+                        }
+                        updateProfile(targetProfile.id, { status: ServerStatus.Updating });
+                        try {
+                            await invoke('stop_ark_server', { profileId: targetProfile.id });
+                        } catch (stopErr) {
+                            console.warn('[Mobile Bridge] Error stopping server before update:', stopErr);
+                        }
+                        await onUpdate(true, targetProfile.id, true);
+                        await updateCommandStatus(userId, commandId, 'completed', `Server stopped safely; update initiated (will automatically restart when update finishes).`);
+                    } else {
+                        await onUpdate(false, targetProfile.id, true);
+                        await updateCommandStatus(userId, commandId, 'completed', `Server update initiated for "${targetProfile.profileName}".`);
+                    }
+
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ Server update initiated for "${targetProfile.profileName}".`]);
+                    break;
+                }
+
+                case 'SEND_RCON_COMMAND': {
+                    if (targetProfile.status !== ServerStatus.Running) {
+                        throw new Error(`Cannot execute RCON command: Server "${targetProfile.profileName}" is not running.`);
+                    }
+                    const rconCmd = payload?.trim();
+                    if (!rconCmd) {
+                        throw new Error('RCON command string is required in payload.');
+                    }
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ⌨️ Executing remote RCON: "${rconCmd}" on "${targetProfile.profileName}"`]);
+
+                    try {
+                        await invoke('send_rcon_command', {
+                            profileId: targetProfile.id,
+                            command: rconCmd,
+                        });
+                    } catch (rconErr: any) {
+                        throw new Error(`RCON execution failed: ${rconErr?.message || rconErr}`);
+                    }
+
+                    const successMsg = `✓ RCON command "${rconCmd}" dispatched to server successfully.`;
+                    await updateCommandStatus(userId, commandId, 'completed', successMsg);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ Remote RCON dispatched: "${rconCmd}"`]);
+                    break;
+                }
+
+                case 'GET_CHAT': {
+                    if (targetProfile.status !== ServerStatus.Running) {
+                        throw new Error(`Cannot retrieve chat: Server "${targetProfile.profileName}" is not running.`);
+                    }
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] 💬 Retrieving in-game chat for "${targetProfile.profileName}"...`]);
+
+                    try {
+                        await invoke('send_rcon_command', {
+                            profileId: targetProfile.id,
+                            command: 'GetChat',
+                        });
+                    } catch (rconErr: any) {
+                        console.warn('[Mobile Bridge] GetChat dispatch error:', rconErr);
+                    }
+
+                    const chatLines = recentChatLogsRef.current[targetProfile.id] || [];
+                    const chatSummary = chatLines.length > 0 
+                        ? chatLines.slice(-30).join('\n') 
+                        : 'No in-game chat messages recorded yet.';
+
+                    await syncServerTelemetry(userId, targetProfile.id, {
+                        serverName: targetProfile.profileName || 'ARK Server',
+                        status: 'Running',
+                        recentChat: chatLines,
+                        onlinePlayers: (playerListsByProfileRef.current[targetProfile.id] || []).map(p => ({ name: p.name, steamId: p.steamId })),
+                    });
+
+                    await updateCommandStatus(userId, commandId, 'completed', chatSummary);
+                    setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ Chat messages retrieved for "${targetProfile.profileName}".`]);
+                    break;
+                }
+
+                default:
+                    throw new Error(`Unsupported remote command action: ${action}`);
+            }
+        } catch (err: any) {
+            const errMsg = err?.message || String(err);
+            console.error('[Mobile Bridge] Remote command execution failed:', err);
+            setManagerLog(prev => [...prev, `[Mobile Bridge] ❌ Command execution failed: ${errMsg}`]);
+            await updateCommandStatus(userId, commandId, 'failed', errMsg);
+        }
+    }, [executeServerStart, onStop, onRestart, onUpdate]);
+
+    // Live Command Listener (Desktop Host Subscriber)
+    useEffect(() => {
+        if (!auth.currentUser) return;
+        const uid = auth.currentUser.uid;
+        console.log(`[Mobile Bridge] Listening for pending remote commands for user: ${uid}`);
+        const unsubscribe = subscribeToPendingCommands(uid, (command) => {
+            handleExecuteRemoteCommand(command);
+        });
+        return () => unsubscribe();
+    }, [handleExecuteRemoteCommand]);
+
+    // Periodic Heartbeat Telemetry Streamer (Syncs all profiles to Firestore every 15s)
+    useEffect(() => {
+        if (!auth.currentUser) return;
+        const interval = setInterval(() => {
+            const user = auth.currentUser;
+            if (!user) return;
+            profilesRef.current.forEach((prof) => {
+                let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error' = 'Stopped';
+                if (prof.status === ServerStatus.Running) mappedStatus = 'Running';
+                else if (prof.status === ServerStatus.Starting) mappedStatus = 'Starting';
+                else if (prof.status === ServerStatus.Stopping) mappedStatus = 'Stopping';
+                else if (prof.status === ServerStatus.Restarting) mappedStatus = 'Restarting';
+                else if (prof.status === ServerStatus.Updating) mappedStatus = 'Updating';
+                else if (prof.status === ServerStatus.Error) mappedStatus = 'Error';
+                else mappedStatus = 'Stopped';
+
+                const nextRestart = calculateNextScheduledRestart(
+                    prof.config?.scheduledRestartEnabled,
+                    prof.config?.scheduledRestartTime,
+                    prof.id === activeProfileIdRef.current ? activeRestartEndTime : null
+                );
+
+                syncServerTelemetry(user.uid, prof.id, {
+                    serverName: prof.profileName || 'ARK Server',
+                    status: mappedStatus,
+                    playerCount: prof.playerCount ?? 0,
+                    maxPlayers: prof.config?.maxPlayers ?? 70,
+                    map: prof.config?.map || 'TheIsland_WP',
+                    ip: prof.config?.rconIp || '',
+                    nextScheduledRestart: nextRestart,
+                    scheduledRestartEnabled: prof.config?.scheduledRestartEnabled ?? false,
+                    scheduledRestartTime: prof.config?.scheduledRestartTime || '04:00',
+                    lastBackupTime: prof.lastBackupTime || '',
+                    currentBuildId: prof.currentBuildId || '',
+                    latestBuildId: prof.latestBuildId || '',
+                    updateAvailable: !!(prof.currentBuildId && prof.latestBuildId && prof.currentBuildId !== prof.latestBuildId),
+                    onlinePlayers: (playerListsByProfileRef.current[prof.id] || []).map(p => ({ name: p.name, steamId: p.steamId })),
+                    recentChat: recentChatLogsRef.current[prof.id] || [],
+                });
+            });
+        }, 15000);
+
+        return () => clearInterval(interval);
+    }, [activeRestartEndTime]);
+
+    // Immediate sync when active restart countdown timer starts or clears
+    useEffect(() => {
+        if (!auth.currentUser || !activeProfile) return;
+        const user = auth.currentUser;
+        const nextRestart = calculateNextScheduledRestart(
+            activeProfile.config?.scheduledRestartEnabled,
+            activeProfile.config?.scheduledRestartTime,
+            activeRestartEndTime
+        );
+        let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error' = 'Stopped';
+        if (activeProfile.status === ServerStatus.Running) mappedStatus = 'Running';
+        else if (activeProfile.status === ServerStatus.Starting) mappedStatus = 'Starting';
+        else if (activeProfile.status === ServerStatus.Stopping) mappedStatus = 'Stopping';
+        else if (activeProfile.status === ServerStatus.Restarting) mappedStatus = 'Restarting';
+        else if (activeProfile.status === ServerStatus.Updating) mappedStatus = 'Updating';
+        else if (activeProfile.status === ServerStatus.Error) mappedStatus = 'Error';
+        else mappedStatus = 'Stopped';
+
+        syncServerTelemetry(user.uid, activeProfile.id, {
+            serverName: activeProfile.profileName || 'ARK Server',
+            status: mappedStatus,
+            playerCount: activeProfile.playerCount ?? 0,
+            maxPlayers: activeProfile.config?.maxPlayers ?? 70,
+            map: activeProfile.config?.map || 'TheIsland_WP',
+            ip: activeProfile.config?.rconIp || '',
+            nextScheduledRestart: nextRestart,
+            scheduledRestartEnabled: activeProfile.config?.scheduledRestartEnabled ?? false,
+            scheduledRestartTime: activeProfile.config?.scheduledRestartTime || '04:00',
+            lastBackupTime: activeProfile.lastBackupTime || '',
+            currentBuildId: activeProfile.currentBuildId || '',
+            latestBuildId: activeProfile.latestBuildId || '',
+            updateAvailable: !!(activeProfile.currentBuildId && activeProfile.latestBuildId && activeProfile.currentBuildId !== activeProfile.latestBuildId),
+            onlinePlayers: (playerListsByProfileRef.current[activeProfile.id] || []).map(p => ({ name: p.name, steamId: p.steamId })),
+            recentChat: recentChatLogsRef.current[activeProfile.id] || [],
+        });
+    }, [activeRestartEndTime]);
 
     const syncDiscordBots = useCallback(async (profilesToSync: ServerProfile[]) => {
         const enabledProfiles = profilesToSync.filter(p => 
@@ -1368,7 +1787,33 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
     const rootPath = directoryService.getRootInstallPath(activeProfile.path);
     try {
         await invoke('create_backup', { installPath: rootPath, serverPath: rootPath });
+        const backupTimestamp = new Date().toISOString();
+        updateProfile(activeProfile.id, { lastBackupTime: backupTimestamp });
         await handleListBackups();
+
+        if (auth.currentUser) {
+            const nextRestart = calculateNextScheduledRestart(
+                activeProfile.config?.scheduledRestartEnabled,
+                activeProfile.config?.scheduledRestartTime,
+                activeRestartEndTime
+            );
+            syncServerTelemetry(auth.currentUser.uid, activeProfile.id, {
+                serverName: activeProfile.profileName || 'ARK Server',
+                status: activeProfile.status === ServerStatus.Running ? 'Running' : 'Stopped',
+                playerCount: activeProfile.playerCount ?? 0,
+                maxPlayers: activeProfile.config?.maxPlayers ?? 70,
+                map: activeProfile.config?.map || 'TheIsland_WP',
+                ip: activeProfile.config?.rconIp || '',
+                nextScheduledRestart: nextRestart,
+                scheduledRestartEnabled: activeProfile.config?.scheduledRestartEnabled ?? false,
+                scheduledRestartTime: activeProfile.config?.scheduledRestartTime || '04:00',
+                lastBackupTime: backupTimestamp,
+                currentBuildId: activeProfile.currentBuildId || '',
+                latestBuildId: activeProfile.latestBuildId || '',
+                updateAvailable: !!(activeProfile.currentBuildId && activeProfile.latestBuildId && activeProfile.currentBuildId !== activeProfile.latestBuildId),
+            });
+        }
+
         notificationService.sendNotification('Backup Created', `Successfully created a backup for "${activeProfile.profileName}".`);
         onShowToast('Backup created successfully!', 'success');
     } catch (error) {
@@ -1930,13 +2375,23 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                 listen<string>('mod-update-log', (event) => setModUpdateLog((prev: string[]) => [...prev, event.payload as string])),
                 listen('mod-update-finished', () => setIsModUpdateFinished(true)),
                 listen<{profile_id: string; line: string}>('manager-log-line', (event) => {
-                    if (event.payload.profile_id === activeProfileIdRef.current) {
-                        setManagerLog((prev: string[]) => [...prev, event.payload.line]);
+                    const { profile_id, line } = event.payload;
+                    if (profile_id === activeProfileIdRef.current) {
+                        setManagerLog((prev: string[]) => [...prev, line]);
+                    }
+                    if (line && line.trim()) {
+                        const currentChat = recentChatLogsRef.current[profile_id] || [];
+                        recentChatLogsRef.current[profile_id] = [...currentChat, line.trim()].slice(-50);
                     }
                 }),
                 listen<{profile_id: string; line: string}>('server-log-line', (event) => {
-                    if (event.payload.profile_id === activeProfileIdRef.current) {
-                        setServerLog((prev: string[]) => [...prev, event.payload.line]);
+                    const { profile_id, line } = event.payload;
+                    if (profile_id === activeProfileIdRef.current) {
+                        setServerLog((prev: string[]) => [...prev, line]);
+                    }
+                    if (line && line.trim()) {
+                        const currentChat = recentChatLogsRef.current[profile_id] || [];
+                        recentChatLogsRef.current[profile_id] = [...currentChat, line.trim()].slice(-50);
                     }
                 }),
                 listen<LogStatsPayload>('log-stats-update', (event) => {
@@ -1952,6 +2407,19 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                         if (currentList.some(p => p.steamId === playerId)) return prev;
                         const updated = [...currentList, { name: playerName, steamId: playerId, playTime: 0 }];
                         updateProfile(profileId, { playerCount: updated.length });
+
+                        if (auth.currentUser) {
+                            const prof = profilesRef.current.find(p => p.id === profileId);
+                            if (prof) {
+                                syncServerTelemetry(auth.currentUser.uid, profileId, {
+                                    serverName: prof.profileName || 'ARK Server',
+                                    status: prof.status === ServerStatus.Running ? 'Running' : 'Stopped',
+                                    playerCount: updated.length,
+                                    onlinePlayers: updated.map(p => ({ name: p.name, steamId: p.steamId })),
+                                });
+                            }
+                        }
+
                         return { ...prev, [profileId]: updated };
                     });
                 }),
@@ -1961,6 +2429,19 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
                         const currentList = prev[profileId] || [];
                         const updated = currentList.filter(p => p.steamId !== playerId);
                         updateProfile(profileId, { playerCount: updated.length });
+
+                        if (auth.currentUser) {
+                            const prof = profilesRef.current.find(p => p.id === profileId);
+                            if (prof) {
+                                syncServerTelemetry(auth.currentUser.uid, profileId, {
+                                    serverName: prof.profileName || 'ARK Server',
+                                    status: prof.status === ServerStatus.Running ? 'Running' : 'Stopped',
+                                    playerCount: updated.length,
+                                    onlinePlayers: updated.map(p => ({ name: p.name, steamId: p.steamId })),
+                                });
+                            }
+                        }
+
                         return { ...prev, [profileId]: updated };
                     });
                 }),
@@ -2621,6 +3102,16 @@ const Dashboard: React.FC<DashboardProps> = ({ appSettings, setNotifications, pr
         expectedPaths={startErrorModalState.paths}
         launchArgs={startErrorModalState.args}
         onOpenConsole={() => setActiveTab('console')}
+      />
+      <MobileBridgeModal
+        isOpen={!!isMobileBridgeOpen}
+        onClose={onCloseMobileBridge || (() => {})}
+        currentUser={currentUser || auth.currentUser}
+        activeProfile={activeProfile}
+        profiles={profiles}
+        onShowToast={onShowToast}
+        playerListsByProfile={playerListsByProfile}
+        recentChatLogs={recentChatLogsRef.current}
       />
 
       {status === ServerStatus.Updating && (

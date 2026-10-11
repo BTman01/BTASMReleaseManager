@@ -161,19 +161,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div className="border-t border-gray-700 pt-4">
               <h4 className="font-semibold text-gray-200 mb-2">What's New</h4>
               <div className="bg-gray-900/50 p-4 rounded-md border border-gray-700 max-h-96 overflow-y-auto text-sm custom-scrollbar">
-                <p className="font-bold text-cyan-400 mb-2">Version {version || '1.6.0'}</p>
+                <p className="font-bold text-cyan-400 mb-2">Version {version || '2.0.0'}</p>
                 
                 {/* Latest Release Notes */}
                 <div className="space-y-4 text-gray-300">
                     <div>
-                        <p className="font-semibold text-gray-200">v1.6.0 (Automated Clean Updates, Silent Background Checks & Console Window Suppression)</p>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/40 text-xs font-bold uppercase tracking-wider">Major Release</span>
+                            <p className="font-semibold text-gray-200">v2.0.0 (Official Mobile App Bridge, Remote RCON & Live Server Telemetry)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Welcoming official mobile app integration! The desktop manager now connects directly with Android Studio mobile companion apps via real-time cloud bridging.
+                        </p>
                         <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
-                            <li><strong>Automated Clean Appmanifest Removal:</strong> SteamCMD now automatically purges the cached <code className="text-cyan-300 font-mono text-xs">appmanifest_2430930.acf</code> file by default before every update and auto-update. This permanently eliminates the common SteamCMD issue where cached manifests cause it to report "already up to date" even when a new patch is published on Steam CDN.</li>
-                            <li><strong>Streamlined Hands-Off Update Controls:</strong> Removed the manual auto-clean broom split-button and modal re-check buttons. Manual updates, automatic background updates, scheduled reboot updates, and Discord bot update commands now execute clean manifest deletion automatically with zero extra user interaction.</li>
-                            <li><strong>Eliminated False "Manifest Missing" Error Toasts:</strong> Enhanced <code className="text-cyan-300 font-mono text-xs">get_server_build_info</code> and update check handlers to gracefully handle missing or wiped manifests, preventing misleading "App manifest file not found" warning toasts from appearing when updates are triggered.</li>
-                            <li><strong>Silent SteamCMD Startup Checks:</strong> Added the Windows <code className="text-cyan-300 font-mono text-xs">CREATE_NO_WINDOW</code> (<code className="text-cyan-300 font-mono text-xs">0x08000000</code>) flag to background SteamCMD build version queries. When launching the release build, SteamCMD update checks now run completely in the background without popping up an unwanted black DOS / command prompt window.</li>
-                            <li><strong>Silent Process Management:</strong> Applied <code className="text-cyan-300 font-mono text-xs">CREATE_NO_WINDOW</code> flags to Windows <code className="text-cyan-300 font-mono text-xs">taskkill</code> operations, eliminating any brief command prompt flashes when stopping, restarting, or terminating server processes.</li>
-                            <li><strong>Non-Blocking Pre-Shutdown World Saves:</strong> Reinforced pre-shutdown <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> with a 3.5s safety timeout, instant <span className="text-amber-400 font-semibold">Stopping...</span> state transitions, graceful <code className="text-cyan-300 font-mono text-xs">DoExit</code> handshakes, and reliable process tree termination.</li>
+                            <li><strong>Real-Time Mobile Cloud Bridge:</strong> Full bi-directional Firestore cloud synchronization between your mobile app and the desktop server manager. Manage, monitor, and execute commands from your phone anywhere.</li>
+                            <li><strong>Arbitrary Typed RCON Command Execution:</strong> Send any custom or typed RCON command directly from your mobile app (e.g. <code className="text-cyan-300 font-mono text-xs">destroywilddinos</code>, <code className="text-cyan-300 font-mono text-xs">SaveWorld</code>, <code className="text-cyan-300 font-mono text-xs">SetTimeOfDay 12:00</code>, <code className="text-cyan-300 font-mono text-xs">ServerChat Hello</code>) with instant execution and output reporting.</li>
+                            <li><strong>Non-Blocking RCON Response Polish:</strong> Upgraded the desktop RCON execution engine to eliminate false timeout warnings on void console commands (<code className="text-cyan-300 font-mono text-xs">SaveWorld</code>, <code className="text-cyan-300 font-mono text-xs">destroywilddinos</code>, <code className="text-cyan-300 font-mono text-xs">ServerChat</code>, broadcasts). The console now confirms immediate success without waiting on silent socket packets.</li>
+                            <li><strong>Remote Backups On-Demand:</strong> Trigger complete server backups directly from mobile with pre-backup <code className="text-cyan-300 font-mono text-xs">SaveWorld</code>, automated zip packaging, and immediate <code className="text-cyan-300 font-mono text-xs">lastBackupTime</code> telemetry synchronization.</li>
+                            <li><strong>Remote Server Updates with Auto-Restart:</strong> Trigger game updates remotely via mobile. The host gracefully announces the shutdown in in-game chat, saves the world, applies SteamCMD patches, and automatically boots the server back up.</li>
+                            <li><strong>Next Scheduled Restart Telemetry:</strong> Live sync of the next scheduled server restart timestamp (<code className="text-cyan-300 font-mono text-xs">nextScheduledRestart</code>), active reboot countdowns, and daily schedule configuration directly to mobile devices.</li>
+                            <li><strong>Live Online Player Rosters & In-Game Chat:</strong> Real-time synchronization of online player rosters with Steam IDs, playtime tracking, and an in-game chat stream accessible from your phone.</li>
+                            <li><strong>Built-In Mobile Bridge Inspector & Simulator:</strong> Integrated visual bridge modal in the desktop dashboard featuring 1-click test actions, live telemetry inspection, and copy-paste Kotlin integration guides for Android Studio.</li>
                         </ul>
                     </div>
                 </div>
@@ -197,6 +205,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
                     {showPreviousReleases && (
                         <div className="mt-4 space-y-4 text-gray-300 border-t border-gray-700/50 pt-4 animate-fade-in">
+                            <div>
+                                <p className="font-semibold text-gray-200">v1.6.0 (Automated Clean Updates, Silent Background Checks & Console Window Suppression)</p>
+                                <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                                    <li><strong>Automated Clean Appmanifest Removal:</strong> SteamCMD now automatically purges the cached <code className="text-cyan-300 font-mono text-xs">appmanifest_2430930.acf</code> file by default before every update and auto-update. This permanently eliminates the common SteamCMD issue where cached manifests cause it to report "already up to date" even when a new patch is published on Steam CDN.</li>
+                                    <li><strong>Streamlined Hands-Off Update Controls:</strong> Removed the manual auto-clean broom split-button and modal re-check buttons. Manual updates, automatic background updates, scheduled reboot updates, and Discord bot update commands now execute clean manifest deletion automatically with zero extra user interaction.</li>
+                                    <li><strong>Eliminated False "Manifest Missing" Error Toasts:</strong> Enhanced <code className="text-cyan-300 font-mono text-xs">get_server_build_info</code> and update check handlers to gracefully handle missing or wiped manifests, preventing misleading "App manifest file not found" warning toasts from appearing when updates are triggered.</li>
+                                    <li><strong>Silent SteamCMD Startup Checks:</strong> Added the Windows <code className="text-cyan-300 font-mono text-xs">CREATE_NO_WINDOW</code> (<code className="text-cyan-300 font-mono text-xs">0x08000000</code>) flag to background SteamCMD build version queries. When launching the release build, SteamCMD update checks now run completely in the background without popping up an unwanted black DOS / command prompt window.</li>
+                                    <li><strong>Silent Process Management:</strong> Applied <code className="text-cyan-300 font-mono text-xs">CREATE_NO_WINDOW</code> flags to Windows <code className="text-cyan-300 font-mono text-xs">taskkill</code> operations, eliminating any brief command prompt flashes when stopping, restarting, or terminating server processes.</li>
+                                    <li><strong>Non-Blocking Pre-Shutdown World Saves:</strong> Reinforced pre-shutdown <code className="text-cyan-300 font-mono text-xs">SaveWorld</code> with a 3.5s safety timeout, instant <span className="text-amber-400 font-semibold">Stopping...</span> state transitions, graceful <code className="text-cyan-300 font-mono text-xs">DoExit</code> handshakes, and reliable process tree termination.</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p className="font-semibold text-gray-200">v1.5.3 (Stop Button & Pre-Shutdown World Save Resolution)</p>
                                 <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1 mt-1">
