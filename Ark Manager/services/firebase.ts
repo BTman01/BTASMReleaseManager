@@ -204,6 +204,38 @@ export async function logoutUser(): Promise<void> {
 }
 
 /**
+ * Friendly Firebase Error Parser
+ */
+export function parseFirebaseError(error: any): string {
+  const code = error?.code || '';
+  const message = error?.message || '';
+
+  if (code === 'resource-exhausted' || message.includes('quota')) {
+    return 'Firestore quota exceeded for today. Remote/Mobile sync is paused until reset (Midnight PT).';
+  }
+
+  switch (code) {
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Invalid email or password.';
+    case 'auth/email-already-in-use':
+      return 'An account already exists with this email.';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/too-many-requests':
+      return 'Too many failed login attempts. Please try again later.';
+    default:
+      return message || 'An unexpected database error occurred.';
+  }
+}
+
+// Simple in-memory cache to prevent redundant writes within the same session
+const telemetryFingerprints: Record<string, string> = {};
+
+/**
  * Telemetry Sync for Remote / Mobile Bridge
  * Syncs the current desktop host server status to Firestore under /users/{userId}/serverInstances/{profileId}
  */
@@ -229,6 +261,32 @@ export async function syncServerTelemetry(
   }
 ): Promise<void> {
   try {
+    // 1. Generate a fingerprint of the data to avoid redundant writes
+    // We exclude 'lastSeen' and 'updatedAt' from the fingerprint comparison
+    const fingerprintPayload = JSON.stringify({
+      serverName: telemetry.serverName,
+      status: telemetry.status,
+      playerCount: telemetry.playerCount,
+      maxPlayers: telemetry.maxPlayers,
+      map: telemetry.map,
+      ip: telemetry.ip,
+      nextScheduledRestart: telemetry.nextScheduledRestart,
+      scheduledRestartEnabled: telemetry.scheduledRestartEnabled,
+      scheduledRestartTime: telemetry.scheduledRestartTime,
+      lastBackupTime: telemetry.lastBackupTime,
+      currentBuildId: telemetry.currentBuildId,
+      latestBuildId: telemetry.latestBuildId,
+      updateAvailable: telemetry.updateAvailable,
+      players: (telemetry.onlinePlayers || []).map(p => p.steamId).sort(),
+      chatCount: (telemetry.recentChat || []).length,
+    });
+
+    const cacheKey = `${userId}_${instanceId}`;
+    if (telemetryFingerprints[cacheKey] === fingerprintPayload) {
+      // Data is identical to last sync, skip write to save Firestore quota
+      return;
+    }
+
     const instanceRef = doc(db, 'users', userId, 'serverInstances', instanceId);
     const payload: Record<string, any> = {
       id: instanceId,
@@ -272,6 +330,9 @@ export async function syncServerTelemetry(
     }
 
     await setDoc(instanceRef, payload, { merge: true });
+    
+    // Update cache after successful write
+    telemetryFingerprints[cacheKey] = fingerprintPayload;
   } catch (error) {
     // Non-blocking telemetry sync warning
     console.debug('[Telemetry] Sync to Firestore:', error);
