@@ -167,6 +167,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 <div className="space-y-4 text-gray-300">
                     <div>
                         <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.1 (Firestore Quota Optimization & Sync Polish)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Optimizing cloud synchronization to reduce database usage and improve connection stability.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Firestore Quota Optimization:</strong> Implemented smart write-deduplication (fingerprinting) to eliminate redundant database updates when server state is unchanged.</li>
+                            <li><strong>Reduced Sync Overhead:</strong> Increased background telemetry heartbeat from 15s to 60s, drastically reducing daily write volume for free-tier users.</li>
+                            <li><strong>Enhanced Error Reporting:</strong> Added specific detection for "Quota Exceeded" events with clear user instructions in the Desktop UI.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
                             <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/40 text-xs font-bold uppercase tracking-wider">Major Release</span>
                             <p className="font-semibold text-gray-200">v2.0.0 (Official Mobile App Bridge, Remote RCON & Live Server Telemetry)</p>
                         </div>
