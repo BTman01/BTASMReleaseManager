@@ -33,6 +33,7 @@ import {
   updateCommandStatus,
   RemoteCommand,
   calculateNextScheduledRestart,
+  parseFirebaseError,
 } from '../services/firebase';
 import * as dialog from '@tauri-apps/plugin-dialog';
 import * as fs from '@tauri-apps/plugin-fs';
@@ -1147,7 +1148,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     throw new Error(`Unsupported remote command action: ${action}`);
             }
         } catch (err: any) {
-            const errMsg = err?.message || String(err);
+            const errMsg = parseFirebaseError(err);
             console.error('[Mobile Bridge] Remote command execution failed:', err);
             setManagerLog(prev => [...prev, `[Mobile Bridge] ❌ Command execution failed: ${errMsg}`]);
             await updateCommandStatus(userId, commandId, 'failed', errMsg);
@@ -1165,7 +1166,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         return () => unsubscribe();
     }, [handleExecuteRemoteCommand]);
 
-    // Periodic Heartbeat Telemetry Streamer (Syncs all profiles to Firestore every 15s)
+    // Periodic Heartbeat Telemetry Streamer (Syncs all profiles to Firestore every 60s)
     useEffect(() => {
         if (!auth.currentUser) return;
         const interval = setInterval(() => {
@@ -1205,7 +1206,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     recentChat: recentChatLogsRef.current[prof.id] || [],
                 });
             });
-        }, 15000);
+        }, 60000);
 
         return () => clearInterval(interval);
     }, [activeRestartEndTime]);

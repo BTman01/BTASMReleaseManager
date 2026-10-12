@@ -5,6 +5,7 @@ import {
   requestPasswordReset,
   getStoredRememberMe,
   setStoredRememberMe,
+  parseFirebaseError,
 } from '../services/firebase';
 import { ArkSpecimenImplantLogo } from './icons';
 
@@ -38,29 +39,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleRememberMeChange = (checked: boolean) => {
     setRememberMe(checked);
     setStoredRememberMe(checked);
-  };
-
-  const parseFirebaseError = (error: any): string => {
-    const code = error?.code || '';
-    if (code === 'auth/operation-not-allowed') {
-      return 'Email/Password sign-in is not yet enabled in the Firebase Console. In Firebase Console > Authentication > Sign-in method, click "Email/Password" and toggle "Enable".';
-    }
-    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-      return 'Incorrect email or password. Please try again.';
-    }
-    if (code === 'auth/email-already-in-use') {
-      return 'An account with this email already exists. Please sign in instead.';
-    }
-    if (code === 'auth/weak-password') {
-      return 'Password should be at least 6 characters long.';
-    }
-    if (code === 'auth/invalid-email') {
-      return 'Please enter a valid email address.';
-    }
-    if (code === 'auth/too-many-requests') {
-      return 'Access temporarily disabled due to many failed attempts. Try again later or reset password.';
-    }
-    return error?.message || 'An unexpected authentication error occurred.';
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
