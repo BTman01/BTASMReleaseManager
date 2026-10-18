@@ -14,7 +14,7 @@ use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use sysinfo::{Pid, System};
+use sysinfo::{Disks, Pid, System};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
 use tauri::{Emitter, Manager, State, Window};
@@ -105,6 +105,32 @@ fn get_global_steamcmd_path() -> PathBuf {
 
 fn get_global_steamcmd_exe() -> PathBuf {
     get_global_steamcmd_path().join("steamcmd.exe")
+}
+
+fn get_available_space_gb(path_str: &str) -> u64 {
+    let disks = Disks::new_with_refreshed_list();
+    let path = Path::new(path_str);
+    
+    // Find the disk that contains this path
+    let mut best_match: Option<&sysinfo::Disk> = None;
+    let mut max_prefix_len = 0;
+
+    for disk in &disks {
+        let mount_point = disk.mount_point().to_string_lossy();
+        if path_str.to_lowercase().starts_with(&mount_point.to_lowercase()) {
+            if mount_point.len() > max_prefix_len {
+                max_prefix_len = mount_point.len();
+                best_match = Some(disk);
+            }
+        }
+    }
+
+    if let Some(disk) = best_match {
+        return disk.available_space() / 1024 / 1024 / 1024; // Convert to GB
+    }
+    
+    // Fallback if no disk found (unlikely on Windows with normal paths)
+    0
 }
 
 async fn download_file(url: &str, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -714,6 +740,21 @@ async fn update_server_files(
 ) -> Result<(), String> {
     *UPDATE_CANCELLED.lock().await = false;
 
+    // Pre-check: Disk Space
+    let available_gb = get_available_space_gb(&install_path);
+    if available_gb < 10 {
+        let err = format!("❌ ERROR: Insufficient disk space on target drive ({available_gb} GB free). ARK updates require significant space to prevent profile corruption. (Block Threshold: 10GB required to start)");
+        log_to_frontend(&window, "update-log", &err);
+        window.emit("update-finished", &serde_json::json!({ "success": false })).unwrap();
+        return Err(err);
+    } else if available_gb < 30 {
+        log_to_frontend(
+            &window, 
+            "update-log", 
+            &format!("⚠️ WARNING: Low disk space detected ({available_gb} GB free). Large ARK updates often require 30GB+ of free space to patch correctly.")
+        );
+    }
+
     // By default, automatically clean the old appmanifest_2430930.acf file on every update
     // so SteamCMD always downloads the latest build and avoids stale manifest caching.
     let should_clean = force_clean.unwrap_or(true);
@@ -835,12 +876,25 @@ async fn update_server_files(
 
                 let stdout = child.stdout.take().expect("Failed stdout");
                 let stderr = child.stderr.take().expect("Failed stderr");
+                let stream_error = Arc::new(Mutex::new(None));
 
                 let win_out = window.clone();
+                let err_out = stream_error.clone();
                 tokio::spawn(async move {
                     let mut reader = BufReader::new(stdout).lines();
                     while let Ok(Some(line)) = reader.next_line().await {
                         log_to_frontend(&win_out, "update-log", &line);
+                        
+                        // Check for common SteamCMD failure indicators
+                        let lower = line.to_lowercase();
+                        if lower.contains("disk space exceeded") || lower.contains("disk write failure") || lower.contains("insufficient disk space") {
+                            let mut g = err_out.lock().await;
+                            *g = Some("SteamCMD reported a Disk Write / Space error.".to_string());
+                        } else if lower.contains("error! app '2430930' state is") && !lower.contains("0x4") {
+                             // 0x4 is fully installed, other states often mean failure
+                             let mut g = err_out.lock().await;
+                             *g = Some(format!("SteamCMD reported an invalid app state: {}", line));
+                        }
                     }
                 });
 
@@ -860,13 +914,30 @@ async fn update_server_files(
                     return Ok(());
                 }
 
+                // Check if our output scanner detected a specific error
+                if let Some(err) = stream_error.lock().await.clone() {
+                    last_error = err;
+                    continue; // Retry or fail
+                }
+
                 match status {
                     Ok(s) => {
                         if s.success() {
-                            let _ = std::fs::remove_file(&script_path);
-                            log_to_frontend(&window, "update-log", "\n✅ Server file update completed successfully!");
-                            window.emit("update-finished", &serde_json::json!({ "success": true })).unwrap();
-                            return Ok(());
+                            // Post-update verification: Ensure the executable actually exists
+                            let game_install_dir = get_game_install_dir(&install_path);
+                            let exe_found = [
+                                game_install_dir.join("ShooterGame").join("Binaries").join("Win64").join("ArkAscendedServer.exe"),
+                                PathBuf::from(&install_path).join("ShooterGame").join("Binaries").join("Win64").join("ArkAscendedServer.exe"),
+                            ].iter().any(|p| p.exists());
+
+                            if !exe_found {
+                                last_error = "Update reported success, but ArkAscendedServer.exe was not found. This usually indicates a corrupted or partial installation due to disk errors.".to_string();
+                            } else {
+                                let _ = std::fs::remove_file(&script_path);
+                                log_to_frontend(&window, "update-log", "\n✅ Server file update completed successfully!");
+                                window.emit("update-finished", &serde_json::json!({ "success": true })).unwrap();
+                                return Ok(());
+                            }
                         } else {
                             last_error = "Process finished with non-zero exit code.".to_string();
                         }
@@ -930,6 +1001,21 @@ async fn update_map(window: Window, install_path: String, map_id: String) -> Res
         "force_install_dir \"{}\"\nlogin anonymous\napp_update {} validate\nquit\n",
         install_dir_arg, dlc_app_id
     );
+
+    // Pre-check: Disk Space
+    let available_gb = get_available_space_gb(&install_path);
+    if available_gb < 10 {
+        let err = format!("❌ ERROR: Insufficient disk space on target drive ({available_gb} GB free). Map downloads require significant space. (Block Threshold: 10GB required to start)");
+        log_to_frontend(&window, "map-update-log", &err);
+        window.emit("map-update-finished", &serde_json::json!({ "success": false })).unwrap();
+        return Err(err);
+    } else if available_gb < 30 {
+        log_to_frontend(
+            &window,
+            "map-update-log",
+            &format!("⚠️ WARNING: Low disk space detected ({available_gb} GB free). Maps can be very large; we recommend at least 30GB of free space.")
+        );
+    }
 
     let script_path = steamcmd_dir.join("map_update_script.txt");
     if let Err(e) = std::fs::write(&script_path, &script_content) {
@@ -1008,6 +1094,21 @@ async fn update_mods(window: Window, install_path: String, mod_ids: String) -> R
     // Install into /server/ subdirectory
     let game_install_dir = get_game_install_dir(&install_path);
     let install_dir_arg = game_install_dir.to_string_lossy().replace("\\", "/");
+
+    // Pre-check: Disk Space
+    let available_gb = get_available_space_gb(&install_path);
+    if available_gb < 10 {
+        let err = format!("❌ ERROR: Insufficient disk space on target drive ({available_gb} GB free). Mod downloads require free space. (Block Threshold: 10GB required to start)");
+        log_to_frontend(&window, "mod-update-log", &err);
+        window.emit("mod-update-finished", &serde_json::json!({ "success": false })).unwrap();
+        return Err(err);
+    } else if available_gb < 30 {
+        log_to_frontend(
+            &window,
+            "mod-update-log",
+            &format!("⚠️ WARNING: Low disk space detected ({available_gb} GB free). If you are updating many mods, 30GB+ of free space is recommended.")
+        );
+    }
 
     let mut script_content = format!("force_install_dir \"{}\"\nlogin anonymous\n", install_dir_arg);
 
