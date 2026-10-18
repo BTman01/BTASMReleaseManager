@@ -168,6 +168,67 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                     <div>
                         <div className="flex items-center space-x-2">
                             <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.5 (Mobile Sync & Map Telemetry Fixes)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Improving real-time synchronization between the Desktop Manager and the Mobile Bridge.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Real-Time Profile Deletion:</strong> Deleting a server profile on the desktop now automatically removes its telemetry from Firestore, ensuring it disappears from your mobile app immediately.</li>
+                            <li><strong>Accurate Map Telemetry:</strong> Resolved an issue where player join/leave events could cause the map display in the mobile app to incorrectly revert to "The Island".</li>
+                            <li><strong>Smart Partial Updates:</strong> Refactored the cloud sync engine to support true partial updates, preventing configuration values from being overwritten by defaults during high-frequency events.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.4 (Update UI Polish & Threshold Consistency)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Ensuring users always see the reason for an update failure, even when it happens before SteamCMD can start.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Persistent Update Modal:</strong> The update progress window now remains open even if a pre-check error (like insufficient disk space) occurs immediately. This ensures users can read the error log instead of the window vanishing.</li>
+                            <li><strong>Global Threshold Enforcement:</strong> The 10GB block / 30GB warning thresholds are now consistently applied to Maps and Mods updates, not just the base server files.</li>
+                            <li><strong>Explicit Error Messaging:</strong> Improved the phrasing of disk space errors to explicitly mention the "Block Threshold" required to initiate any patching operation.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.3 (Strict Disk Space Verification)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Refined disk space safety thresholds based on real-world ARK update sizes.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Stricter Update Blocking:</strong> Updates are now blocked if less than 10GB of free space is available (increased from 1GB).</li>
+                            <li><strong>Increased Warning Threshold:</strong> A low-space warning will now appear if the target drive has less than 30GB of free space (increased from 15GB).</li>
+                            <li><strong>Proactive Corruption Prevention:</strong> Prevents SteamCMD from initiating patches that are almost certain to fail and corrupt the server profile.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.2 (SteamCMD Disk Space Verification & Error Handling)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Critical fix for SteamCMD update failures caused by insufficient disk space and partial installation corruption.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Disk Space Pre-check:</strong> The manager now verifies available disk space before starting any server, map, or mod update. Updates are blocked if less than 1GB is free, with warnings for less than 15GB.</li>
+                            <li><strong>Live SteamCMD Error Scanning:</strong> Real-time monitoring of the SteamCMD output stream to detect "Disk space exceeded", "Disk write failure", and "Insufficient disk space" errors as they happen.</li>
+                            <li><strong>Post-Update Executable Verification:</strong> Even if SteamCMD reports success, the manager now performs a secondary verification to ensure the <code>ArkAscendedServer.exe</code> exists. This prevents reporting a "Successful Update" when a partial download has actually broken the profile.</li>
+                            <li><strong>Improved App State Tracking:</strong> Enhanced validation of SteamCMD app states to catch and report non-standard failure codes during the patching process.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
                             <p className="font-semibold text-gray-200">v2.0.1 (Firestore Quota Optimization & Sync Polish)</p>
                         </div>
                         <p className="text-xs text-gray-400 mt-1 mb-2">

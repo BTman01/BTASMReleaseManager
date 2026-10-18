@@ -29,6 +29,7 @@ import MobileBridgeModal from './MobileBridgeModal';
 import {
   auth,
   syncServerTelemetry,
+  deleteServerTelemetry,
   subscribeToPendingCommands,
   updateCommandStatus,
   RemoteCommand,
@@ -216,6 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   
   const [updateLog, setUpdateLog] = useState<string[]>([]);
   const [isUpdateFinished, setIsUpdateFinished] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   const [mapUpdateLog, setMapUpdateLog] = useState<string[]>([]);
@@ -368,6 +370,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     updatingProfileIdRef.current = profileToUpdate.id;
 
     setIsUpdateFinished(false);
+    setIsUpdateModalOpen(true);
     updateProfile(profileToUpdate.id, { status: ServerStatus.Updating });
     setUpdateLog([
       forceCleanManifest 
@@ -2416,6 +2419,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     serverName: prof.profileName || 'ARK Server',
                                     status: prof.status === ServerStatus.Running ? 'Running' : 'Stopped',
                                     playerCount: updated.length,
+                                    map: prof.config?.map || 'TheIsland_WP',
                                     onlinePlayers: updated.map(p => ({ name: p.name, steamId: p.steamId })),
                                 });
                             }
@@ -2438,6 +2442,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     serverName: prof.profileName || 'ARK Server',
                                     status: prof.status === ServerStatus.Running ? 'Running' : 'Stopped',
                                     playerCount: updated.length,
+                                    map: prof.config?.map || 'TheIsland_WP',
                                     onlinePlayers: updated.map(p => ({ name: p.name, steamId: p.steamId })),
                                 });
                             }
@@ -2544,16 +2549,24 @@ const Dashboard: React.FC<DashboardProps> = ({
     setIsDeleteModalOpen(true);
   };
 
-  const confirmDeleteProfile = () => {
+  const confirmDeleteProfile = async () => {
     if (profileToDelete) {
-        const newProfiles = profiles.filter(p => p.id !== profileToDelete.id);
+        const profileId = profileToDelete.id;
+        const profileName = profileToDelete.name;
+        
+        const newProfiles = profiles.filter(p => p.id !== profileId);
         setProfiles(newProfiles);
         directoryService.saveProfiles(newProfiles);
 
-        if (activeProfileId === profileToDelete.id) {
+        // Sync with Firebase: Remove the instance from Firestore so it disappears from Mobile App
+        if (auth.currentUser) {
+            await deleteServerTelemetry(auth.currentUser.uid, profileId);
+        }
+
+        if (activeProfileId === profileId) {
             setActiveProfileId(newProfiles.length > 0 ? newProfiles[0].id : null);
         }
-        onShowToast(`Profile "${profileToDelete.name}" deleted.`, 'success');
+        onShowToast(`Profile "${profileName}" deleted.`, 'success');
     }
     setIsDeleteModalOpen(false);
     setProfileToDelete(null);
@@ -3115,12 +3128,17 @@ const Dashboard: React.FC<DashboardProps> = ({
         recentChatLogs={recentChatLogsRef.current}
       />
 
-      {status === ServerStatus.Updating && (
+      {isUpdateModalOpen && (
           <UpdateProgressModal 
             log={updateLog} 
             isFinished={isUpdateFinished}
             profileName={activeProfile?.profileName}
-            onClose={() => updateProfile(activeProfileId!, { status: ServerStatus.Stopped })}
+            onClose={() => {
+                setIsUpdateModalOpen(false);
+                if (activeProfile && (activeProfile.status === ServerStatus.Updating || activeProfile.status === ServerStatus.Verifying)) {
+                    updateProfile(activeProfile.id, { status: ServerStatus.Stopped });
+                }
+            }}
             onCancelUpdate={handleCancelUpdate}
           />
         )
