@@ -26,6 +26,7 @@ import {
   onSnapshot,
   orderBy,
   limit,
+  deleteDoc,
 } from 'firebase/firestore';
 const DEFAULT_FIREBASE_CONFIG = {
   projectId: "protean-unity-447015-a9",
@@ -293,13 +294,22 @@ export async function syncServerTelemetry(
       userId,
       serverName: telemetry.serverName,
       status: telemetry.status,
-      playerCount: telemetry.playerCount ?? 0,
-      maxPlayers: telemetry.maxPlayers ?? 70,
-      map: telemetry.map || 'TheIsland_WP',
-      ip: telemetry.ip || '',
       lastSeen: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
+    if (telemetry.playerCount !== undefined) {
+      payload.playerCount = telemetry.playerCount;
+    }
+    if (telemetry.maxPlayers !== undefined) {
+      payload.maxPlayers = telemetry.maxPlayers;
+    }
+    if (telemetry.map !== undefined) {
+      payload.map = telemetry.map || 'TheIsland_WP';
+    }
+    if (telemetry.ip !== undefined) {
+      payload.ip = telemetry.ip || '';
+    }
 
     if (telemetry.nextScheduledRestart !== undefined) {
       payload.nextScheduledRestart = telemetry.nextScheduledRestart || '';
@@ -336,6 +346,24 @@ export async function syncServerTelemetry(
   } catch (error) {
     // Non-blocking telemetry sync warning
     console.debug('[Telemetry] Sync to Firestore:', error);
+  }
+}
+
+/**
+ * Delete Telemetry for a profile (Cleanup when profile is deleted)
+ */
+export async function deleteServerTelemetry(userId: string, instanceId: string): Promise<void> {
+  try {
+    const instanceRef = doc(db, 'users', userId, 'serverInstances', instanceId);
+    await deleteDoc(instanceRef);
+    
+    // Also clean up local fingerprint cache
+    const cacheKey = `${userId}_${instanceId}`;
+    delete telemetryFingerprints[cacheKey];
+    
+    console.log(`[Telemetry] Successfully deleted instance ${instanceId} from Firestore.`);
+  } catch (error) {
+    console.error('[Telemetry] Failed to delete instance from Firestore:', error);
   }
 }
 
