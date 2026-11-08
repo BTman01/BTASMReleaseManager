@@ -1,10 +1,19 @@
 
 import { ServerProfile } from '../types';
 
-export const DiscordColors = {
+export interface DiscordColorSet {
+    GREEN: number;
+    RED: number;
+    YELLOW: number;
+    ORANGE: number;
+    BLUE: number;
+}
+
+export const DiscordColors: DiscordColorSet = {
     GREEN: 5763719,
     RED: 15548997,
     YELLOW: 16776960,
+    ORANGE: 15105570,
     BLUE: 5814783,
 };
 
