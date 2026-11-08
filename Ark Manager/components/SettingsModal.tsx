@@ -167,6 +167,90 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 <div className="space-y-4 text-gray-300">
                     <div>
                         <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/40 text-xs font-bold uppercase tracking-wider">Minor Release</span>
+                            <p className="font-semibold text-gray-200">v2.1.0 (Strict INI Templates & ARK v97.5 Compatibility)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            A major rework of configuration generation for modern ARK: Ascended server requirements.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Strict INI Rework:</strong> Completely refactored <code>GameUserSettings.ini</code> and <code>Game.ini</code> generation to follow precise section ordering and parameter sequences. This resolves critical server list visibility issues introduced in ARK v97.5.</li>
+                            <li><strong>Session Settings Fix:</strong> Ensured <code>SessionName</code> and <code>Port</code> are explicitly included in the <code>[SessionSettings]</code> block, which is now mandatory for server discovery.</li>
+                            <li><strong>Expanded Parameter Support:</strong> Added dozens of new gameplay multipliers to both INI files, including detailed dino/player drains, damage/resistance scalars, and structure area limits (NewMaxStructuresInRange).</li>
+                            <li><strong>Server Type Toggle:</strong> Added a user-friendly PvP/PvE selection directly in the profile configuration.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.10 (Launch Argument Refinement & Quoting)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Optimizing command-line structure for improved server registration.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Explicit Map & Session Quoting:</strong> The Map Name and SessionName are now wrapped in double quotes (e.g., <code>"TheIsland_WP"?SessionName="MyServer"</code>) to ensure robust parsing by the game engine.</li>
+                            <li><strong>CLI PVE Flag Removal:</strong> Removed <code>ServerPVE</code> from the command-line arguments. The server will now rely exclusively on the setting within <code>GameUserSettings.ini</code>, preventing potential overrides or conflicts during boot.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.9 (Revert Launch Argument Changes)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Restoring stable command-line format for maximum compatibility.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Stable Format Reversion:</strong> Reverted the experimental naming and quoting changes introduced in v2.0.7 and v2.0.8. The launch command now uses the original v2.0.6 format which proved to be more stable across different server environments.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.8 (PVE Argument Refinement)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Improving command-line argument parsing for better server list reliability.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Standard Argument Migration:</strong> Moved the <code>ServerPVE</code> flag from a URL-style parameter to a standard command-line argument (<code>-ServerPVE=true</code>). This resolves occasional parsing issues where the game would fail to recognize the PVE setting if it was directly appended to the map name.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.7 (Launch Argument Quoting Fix)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Critical fix for server visibility issues introduced in ARK version 97.5.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Strict Argument Quoting:</strong> Added literal quotes around the Map name and Session Name in the launch command. Modern ARK server builds now require these fields to be explicitly quoted to register correctly in the global server list.</li>
+                            <li><strong>Command Line Accuracy:</strong> Updated the "Live Command Line Preview" in the configuration tab to accurately reflect these quoting changes.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.0.6 (Crash Recovery & Update Modal Polish)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Focusing on server stability and user experience during updates.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Automated Crash Recovery:</strong> The manager now monitors your server process and will automatically attempt to restart it if it crashes or stops unexpectedly. Recovery is attempted up to 3 times before stopping to prevent infinite loops.</li>
+                            <li><strong>Update Modal Auto-Close:</strong> Successful update windows now default to closing automatically after 10 seconds.</li>
+                            <li><strong>"Keep Open" Toggle:</strong> Added a checkbox to the update window to disable auto-close if you want to review the full SteamCMD logs.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center space-x-2">
                             <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
                             <p className="font-semibold text-gray-200">v2.0.5 (Mobile Sync & Map Telemetry Fixes)</p>
                         </div>

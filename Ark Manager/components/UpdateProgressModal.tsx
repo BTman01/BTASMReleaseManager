@@ -45,6 +45,10 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
   const [commandInput, setCommandInput] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
   const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
+  
+  // Auto-close states
+  const [autoClose, setAutoClose] = useState(true);
+  const [countdown, setCountdown] = useState(10);
 
   // Elapsed time counter
   useEffect(() => {
@@ -55,6 +59,7 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
     return () => clearInterval(timer);
   }, [isFinished]);
 
+
   const formatElapsed = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -62,11 +67,17 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
   };
 
   // Reset cancelling state once update completes
+  const hasHandledCompletionRef = useRef(false);
   useEffect(() => {
-    if (isFinished) {
-      setIsCancelling(false);
+    if (isFinished && !hasHandledCompletionRef.current) {
+      if (isCancelling) {
+        setIsCancelling(() => false);
+      }
+      hasHandledCompletionRef.current = true;
+    } else if (!isFinished) {
+      hasHandledCompletionRef.current = false;
     }
-  }, [isFinished]);
+  }, [isFinished, isCancelling]);
 
   // Parse log entries in real-time to determine current step and progress
   const progressState: ParsedProgressState = useMemo(() => {
@@ -266,6 +277,20 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
       isCancelled: false,
     };
   }, [log, isFinished]);
+
+  // Auto-close timer logic
+  useEffect(() => {
+    if (isFinished && autoClose && !progressState.hasError && !progressState.isCancelled) {
+      if (countdown <= 0) {
+        onClose();
+        return;
+      }
+      const timer = setTimeout(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isFinished, autoClose, countdown, onClose, progressState.hasError, progressState.isCancelled]);
 
   // Auto-scroll terminal log
   useEffect(() => {
@@ -581,13 +606,34 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
 
         {/* Footer Actions */}
         <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-gray-700/80">
-          <div className="text-xs text-gray-400">
-            {isFinished 
-              ? 'Update has finished. Server files are ready.' 
-              : 'Please keep the manager open while updating files.'}
+          <div className="flex flex-col space-y-1">
+            <div className="text-xs text-gray-400">
+              {isFinished 
+                ? (progressState.hasError || progressState.isCancelled ? 'Update finished with issues.' : 'Update successful. Server files are ready.') 
+                : 'Please keep the manager open while updating files.'}
+            </div>
+            
+            {/* Auto-close Toggle */}
+            <div className="flex items-center space-x-2">
+              <label className="flex items-center space-x-2 cursor-pointer group select-none">
+                <input 
+                  type="checkbox"
+                  checked={!autoClose}
+                  onChange={(e) => setAutoClose(!e.target.checked)}
+                  className="rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-cyan-500 h-3.5 w-3.5 transition-colors"
+                />
+                <span className="text-[11px] text-gray-400 group-hover:text-gray-300 transition-colors">Keep window open after update</span>
+              </label>
+            </div>
           </div>
 
           <div className="flex items-center justify-end space-x-3">
+            {isFinished && autoClose && !progressState.hasError && !progressState.isCancelled && (
+              <span className="text-xs text-cyan-400 font-medium animate-pulse">
+                Auto-closing in {countdown}s...
+              </span>
+            )}
+
             {!isFinished && onCancelUpdate && (
               <button
                 type="button"

@@ -205,6 +205,24 @@ const ServerManagement: React.FC<ServerManagementProps> = ({
                             </div>
                         )}
 
+                        <hr className="border-gray-700/50 my-2" />
+
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-semibold text-gray-300">Stability & Recovery</h4>
+                            <CheckboxInput 
+                                label="Enable automated crash recovery"
+                                name="autoCrashRecovery"
+                                checked={config.autoCrashRecovery ?? true}
+                                onChange={handleChange}
+                                disabled={isActionInProgress}
+                            />
+                            <div className="pl-7">
+                                <p className="text-xs text-gray-400 max-w-lg">
+                                    If the server process crashes or stops unexpectedly, the manager will attempt to automatically restart it. It will try up to 3 consecutive times before requiring manual intervention.
+                                </p>
+                            </div>
+                        </div>
+
                         <div className="p-4 bg-gray-900/50 rounded-md border border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
                                 <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Installed Build ID</p>

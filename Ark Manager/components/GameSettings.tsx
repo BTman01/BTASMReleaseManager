@@ -319,6 +319,32 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 description="Controls the quantity of items received per harvest hit."
               />
             )}
+            {isMatching('Dino Harvesting Damage Multiplier') && (
+              <SliderInput
+                label="Dino Harvesting Damage Multiplier"
+                name="dinoHarvestingDamageMultiplier"
+                value={config.dinoHarvestingDamageMultiplier ?? 3.2}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={3.2}
+                fileTag="Game.ini"
+                description="Multiplier for the damage dinos deal to resource nodes (higher damage = faster harvest)."
+              />
+            )}
+            {isMatching('Player Harvesting Damage Multiplier') && (
+              <SliderInput
+                label="Player Harvesting Damage Multiplier"
+                name="playerHarvestingDamageMultiplier"
+                value={config.playerHarvestingDamageMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Multiplier for the damage players deal to resource nodes."
+              />
+            )}
             {isMatching('Harvest Health Multiplier') && (
               <SliderInput
                 label="Harvest Node Health Multiplier"
@@ -382,6 +408,34 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 defaultVal={1.0}
                 fileTag="Game.ini"
                 description="Multiplier for passive over-time experience gain."
+              />
+            )}
+            {isMatching('Dino Count Multiplier Wild Spawn Density') && (
+              <SliderInput
+                label="Dino Count Multiplier"
+                name="dinoCountMultiplier"
+                value={config.dinoCountMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                min={0.1}
+                max={5.0}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Controls the density of wild dinosaur spawns across the world."
+              />
+            )}
+            {isMatching('Resources Respawn Period Multiplier Regrow') && (
+              <SliderInput
+                label="Resources Respawn Multiplier"
+                name="resourcesRespawnPeriodMultiplier"
+                value={config.resourcesRespawnPeriodMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                min={0.1}
+                max={10.0}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Lower values make resources (trees, rocks) regrow faster after being harvested."
               />
             )}
           </div>
@@ -721,6 +775,32 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 description="Restricts in-game text chat messages to nearby players."
               />
             )}
+            {isMatching('Player Damage Multiplier') && (
+              <SliderInput
+                label="Player Damage Multiplier"
+                name="playerDamageMultiplier"
+                value={config.playerDamageMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Multiplier for damage dealt by players."
+              />
+            )}
+            {isMatching('Player Resistance Multiplier Defense') && (
+              <SliderInput
+                label="Player Resistance Multiplier"
+                name="playerResistanceMultiplier"
+                value={config.playerResistanceMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Lower values reduce damage taken by players (e.g. 0.5 = take half damage)."
+              />
+            )}
           </div>
         </div>
       )}
@@ -759,6 +839,32 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 defaultVal={1.0}
                 fileTag="Game.ini"
                 description="Lower values reduce damage taken by tamed dinosaurs (e.g. 0.5 = take half damage)."
+              />
+            )}
+            {isMatching('General Dino Damage Multiplier') && (
+              <SliderInput
+                label="Dino Damage Multiplier (Global)"
+                name="dinoDamageMultiplier"
+                value={config.dinoDamageMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Global multiplier for damage dealt by all dinosaurs (wild and tamed)."
+              />
+            )}
+            {isMatching('General Dino Resistance Multiplier Defense Global') && (
+              <SliderInput
+                label="Dino Resistance Multiplier (Global)"
+                name="dinoResistanceMultiplier"
+                value={config.dinoResistanceMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Global multiplier for damage taken by all dinosaurs (lower = more tanky)."
               />
             )}
             {isMatching('Dino Food Drain Multiplier Tamed Hunger') && (
@@ -828,6 +934,58 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 description="Lower values make creatures defecate more frequently for fertilizer collection."
               />
             )}
+            {isMatching('Wild Dino Food Drain Multiplier Hunger') && (
+              <SliderInput
+                label="Wild Dino Food Drain Multiplier"
+                name="wildDinoCharacterFoodDrainMultiplier"
+                value={config.wildDinoCharacterFoodDrainMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={5}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Controls how quickly wild dinosaurs consume food."
+              />
+            )}
+            {isMatching('Tamed Dino Torpor Drain Multiplier') && (
+              <SliderInput
+                label="Tamed Dino Torpor Drain"
+                name="tamedDinoTorporDrainMultiplier"
+                value={config.tamedDinoTorporDrainMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Controls how quickly tamed dinosaurs recover from being unconscious."
+              />
+            )}
+            {isMatching('Wild Dino Torpor Drain Multiplier') && (
+              <SliderInput
+                label="Wild Dino Torpor Drain"
+                name="wildDinoTorporDrainMultiplier"
+                value={config.wildDinoTorporDrainMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Controls how quickly wild dinosaurs recover from being unconscious."
+              />
+            )}
+            {isMatching('Dino Turret Damage Multiplier') && (
+              <SliderInput
+                label="Dino Turret Damage"
+                name="dinoTurretDamageMultiplier"
+                value={config.dinoTurretDamageMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Multiplier for the damage dinos take from automated turrets."
+              />
+            )}
             {isMatching('Allow Flyer Carry PvE Pick Up Wild') && (
               <CheckboxInput
                 label="Allow Flyer Carry in PvE"
@@ -881,6 +1039,21 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 disabled={isActionInProgress}
                 fileTag="GameUserSettings.ini"
                 description="Forces flyer riding on maps and zones where flyers are normally restricted (such as Genesis Part 1, space/lunar simulation areas, and certain caves)."
+              />
+            )}
+            {isMatching('Max Tamed Dinos Count Limit') && (
+              <SliderInput
+                label="Max Tamed Dinos (Server Wide)"
+                name="maxTamedDinos"
+                value={config.maxTamedDinos ?? 5000.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                min={100}
+                max={50000}
+                step={100}
+                defaultVal={5000.0}
+                fileTag="GameUserSettings.ini"
+                description="The total number of tamed creatures allowed on the server across all tribes."
               />
             )}
           </div>
@@ -1022,6 +1195,32 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 description="Higher values speed up greenhouse and crop plot growth rates."
               />
             )}
+            {isMatching('Supply Crate Loot Quality Multiplier') && (
+              <SliderInput
+                label="Supply Crate Loot Quality"
+                name="supplyCrateLootQualityMultiplier"
+                value={config.supplyCrateLootQualityMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Controls the quality and rarity of items found in beacon supply drops."
+              />
+            )}
+            {isMatching('Fishing Loot Quality Multiplier') && (
+              <SliderInput
+                label="Fishing Loot Quality"
+                name="fishingLootQualityMultiplier"
+                value={config.fishingLootQualityMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Controls the quality of loot obtained from fishing."
+              />
+            )}
             {isMatching('Auto Save Period Minutes Interval') && (
               <SliderInput
                 label="World Auto Save Interval (Minutes)"
@@ -1106,6 +1305,19 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 description="Prevents tribe members and tribe dinosaurs from damaging each other."
               />
             )}
+            {isMatching('PvP Zone Structure Damage Multiplier') && (
+              <SliderInput
+                label="PvP Zone Structure Damage"
+                name="pvpZoneStructureDamageMultiplier"
+                value={config.pvpZoneStructureDamageMultiplier ?? 6.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={20}
+                defaultVal={6.0}
+                fileTag="Game.ini"
+                description="Multiplier for structure damage in designated PvP zones (e.g. caves)."
+              />
+            )}
             {isMatching('Disable Structure Decay PvE Demolish') && (
               <CheckboxInput
                 label="Disable PvE Structure Decay"
@@ -1126,6 +1338,45 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 disabled={isActionInProgress}
                 fileTag="GameUserSettings.ini"
                 description="Disables automatic dino unclaim and death timers when players are offline."
+              />
+            )}
+            {isMatching('Custom Recipe Effectiveness Multiplier') && (
+              <SliderInput
+                label="Custom Recipe Effectiveness"
+                name="customRecipeEffectivenessMultiplier"
+                value={config.customRecipeEffectivenessMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Multiplier for the nutritional benefits of custom food and drink recipes."
+              />
+            )}
+            {isMatching('Custom Recipe Skill Multiplier') && (
+              <SliderInput
+                label="Custom Recipe Skill Multiplier"
+                name="customRecipeSkillMultiplier"
+                value={config.customRecipeSkillMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Controls the bonus received from the player's crafting skill when creating custom recipes."
+              />
+            )}
+            {isMatching('Crafting Skill Bonus Multiplier') && (
+              <SliderInput
+                label="Crafting Skill Bonus Multiplier"
+                name="craftingSkillBonusMultiplier"
+                value={config.craftingSkillBonusMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="Game.ini"
+                description="Master multiplier for the quality bonus applied when crafting from blueprints with high crafting skill."
               />
             )}
             {isMatching('Structure Pickup Time After Placement Window Seconds') && (
@@ -1156,6 +1407,60 @@ const GameSettings: React.FC<GameSettingsProps> = ({ config, onConfigChange, onS
                 defaultVal={0}
                 fileTag="Game.ini"
                 description="Restricts the maximum number of players permitted in a single tribe (0 for default/unlimited)."
+              />
+            )}
+            {isMatching('Structure Damage Multiplier') && (
+              <SliderInput
+                label="Structure Damage Multiplier"
+                name="structureDamageMultiplier"
+                value={config.structureDamageMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Multiplier for damage dealt by structures (e.g. Spike Walls)."
+              />
+            )}
+            {isMatching('Structure Resistance Multiplier Defense') && (
+              <SliderInput
+                label="Structure Resistance Multiplier"
+                name="structureResistanceMultiplier"
+                value={config.structureResistanceMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Lower values reduce damage taken by structures (e.g. 0.5 = take half damage)."
+              />
+            )}
+            {isMatching('PvE Structure Decay Period Multiplier') && (
+              <SliderInput
+                label="PvE Structure Decay Period"
+                name="pveStructureDecayPeriodMultiplier"
+                value={config.pveStructureDecayPeriodMultiplier ?? 1.0}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                max={10}
+                defaultVal={1.0}
+                fileTag="GameUserSettings.ini"
+                description="Multiplier for the decay period of structures in PvE mode."
+              />
+            )}
+            {isMatching('Max Structures In Range NewMaxStructuresInRange') && (
+              <SliderInput
+                label="Max Structures In Range"
+                name="newMaxStructuresInRange"
+                value={config.newMaxStructuresInRange ?? 6000}
+                onChange={handleValueChange}
+                disabled={isActionInProgress}
+                min={1000}
+                max={20000}
+                step={500}
+                defaultVal={6000}
+                fileTag="GameUserSettings.ini"
+                description="Maximum number of structures allowed within a certain area (NewMaxStructuresInRange)."
               />
             )}
           </div>

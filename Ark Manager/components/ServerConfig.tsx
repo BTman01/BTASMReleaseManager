@@ -288,7 +288,7 @@ const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, prof
   const fullCommandLinePreview = useMemo(() => {
     const urlOptions = [];
     urlOptions.push(`SessionName=${config.sessionName || 'MyArkServer'}`);
-    urlOptions.push(`ServerPVE=${config.bServerPVE ?? true}`);
+    urlOptions.push(`ServerPVE=${config.bServerPVE ? 'true' : 'false'}`);
     
     const mapAndOptionsArg = `${config.map || 'TheIsland_WP'}?${urlOptions.join('?')}`;
     const args: string[] = [mapAndOptionsArg];
@@ -433,6 +433,13 @@ const ServerConfigComponent: React.FC<ServerConfigProps> = ({ config, path, prof
                     <Select id="map" name="map" value={config.map} onChange={handleChange} disabled={isActionInProgress}>
                         <option value="SELECT_MAP" disabled>-- Choose a Map --</option>
                         {ARK_MAPS.map(map => <option key={map} value={map}>{map}</option>)}
+                    </Select>
+                </div>
+                <div>
+                    <Label htmlFor="bServerPVE">Server Type</Label>
+                    <Select id="bServerPVE" name="bServerPVE" value={config.bServerPVE ? 'true' : 'false'} onChange={(e) => onConfigChange({ bServerPVE: e.target.value === 'true' })} disabled={isActionInProgress}>
+                        <option value="false">PvP (Player vs Player)</option>
+                        <option value="true">PvE (Player vs Environment)</option>
                     </Select>
                 </div>
                 <div>

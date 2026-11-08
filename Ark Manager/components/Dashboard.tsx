@@ -78,6 +78,18 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     dayTimeSpeedScale: 1.0,
     nightTimeSpeedScale: 1.0,
     autoSavePeriodMinutes: 15.0,
+    dinoHarvestingDamageMultiplier: 3.2,
+    playerHarvestingDamageMultiplier: 1.0,
+    dinoCountMultiplier: 1.0,
+    dinoDamageMultiplier: 1.0,
+    dinoResistanceMultiplier: 1.0,
+    playerDamageMultiplier: 1.0,
+    playerResistanceMultiplier: 1.0,
+    pveStructureDecayPeriodMultiplier: 1.0,
+    resourcesRespawnPeriodMultiplier: 1.0,
+    structureDamageMultiplier: 1.0,
+    structureResistanceMultiplier: 1.0,
+    newMaxStructuresInRange: 6000,
 
     // General Rates & XP Multipliers (Game.ini)
     harvestHealthMultiplier: 1.0,
@@ -86,6 +98,11 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     craftXPMultiplier: 1.0,
     genericXPMultiplier: 1.0,
     specialXPMultiplier: 1.0,
+    customRecipeEffectivenessMultiplier: 1.0,
+    customRecipeSkillMultiplier: 1.0,
+    craftingSkillBonusMultiplier: 1.0,
+    supplyCrateLootQualityMultiplier: 1.0,
+    fishingLootQualityMultiplier: 1.0,
 
     // Breeding & Maturation (Game.ini)
     matingIntervalMultiplier: 1.0,
@@ -130,6 +147,10 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     tamedDinoResistanceMultiplier: 1.0,
     layEggIntervalMultiplier: 1.0,
     poopIntervalMultiplier: 1.0,
+    tamedDinoTorporDrainMultiplier: 1.0,
+    wildDinoTorporDrainMultiplier: 1.0,
+    wildDinoCharacterFoodDrainMultiplier: 1.0,
+    dinoTurretDamageMultiplier: 1.0,
 
     // World, Spoil & Decomposition
     itemSpoilingTimeMultiplier: 1.0,
@@ -151,6 +172,7 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     bPvEDisableFriendlyFire: false,
     bPassiveDefensesDamageRiderlessImprintedDino: true,
     maxNumberOfPlayersInTribe: 0,
+    pvpZoneStructureDamageMultiplier: 6.0,
 
     // Tributes & Transfers
     bNoTributeDownloads: false,
@@ -182,6 +204,7 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     wipeWildDinosOnRestart: false,
     saveWorldOnStopRestart: true,
     restartAnnouncementMinutes: 10,
+    autoCrashRecovery: true,
 
     // Clustering
     bEnableClustering: false,
@@ -194,6 +217,7 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     discordBotToken: '',
     discordBotEnabled: false,
     discordBotChannelId: '',
+    maxTamedDinos: 5000,
 });
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -248,6 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const [detectedConfig, setDetectedConfig] = useState<Partial<ServerConfig> | null>(null);
   const [isDiagnosingRcon, setIsDiagnosingRcon] = useState(false);
+  const crashRecoveryAttemptsRef = useRef<Record<string, number>>({});
   const [localIps, setLocalIps] = useState<string[]>(['127.0.0.1']);
 
   const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = useState(false);
@@ -315,44 +340,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           const newProfiles = prevProfiles.map(p => p.id === id ? { ...p, ...updates } : p);
           directoryService.saveProfiles(newProfiles);
 
-          // Synchronize telemetry to cloud account for remote/mobile bridge
-          if (auth.currentUser) {
-              const currentProf = newProfiles.find(p => p.id === id);
-              if (currentProf) {
-                  let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error' = 'Stopped';
-                  if (currentProf.status === ServerStatus.Running) mappedStatus = 'Running';
-                  else if (currentProf.status === ServerStatus.Starting) mappedStatus = 'Starting';
-                  else if (currentProf.status === ServerStatus.Stopping) mappedStatus = 'Stopping';
-                  else if (currentProf.status === ServerStatus.Restarting) mappedStatus = 'Restarting';
-                  else if (currentProf.status === ServerStatus.Updating) mappedStatus = 'Updating';
-                  else if (currentProf.status === ServerStatus.Error) mappedStatus = 'Error';
-                  else mappedStatus = 'Stopped';
-
-                  const nextRestart = calculateNextScheduledRestart(
-                      currentProf.config?.scheduledRestartEnabled,
-                      currentProf.config?.scheduledRestartTime,
-                      currentProf.id === activeProfileIdRef.current ? activeRestartEndTime : null
-                  );
-
-                  syncServerTelemetry(auth.currentUser.uid, id, {
-                      serverName: currentProf.profileName || 'ARK Server',
-                      status: mappedStatus,
-                      playerCount: currentProf.playerCount ?? 0,
-                      maxPlayers: currentProf.config?.maxPlayers ?? 70,
-                      map: currentProf.config?.map || 'TheIsland_WP',
-                      ip: currentProf.config?.rconIp || '',
-                      nextScheduledRestart: nextRestart,
-                      scheduledRestartEnabled: currentProf.config?.scheduledRestartEnabled ?? false,
-                      scheduledRestartTime: currentProf.config?.scheduledRestartTime || '04:00',
-                      lastBackupTime: currentProf.lastBackupTime || '',
-                      currentBuildId: currentProf.currentBuildId || '',
-                      latestBuildId: currentProf.latestBuildId || '',
-                      updateAvailable: !!(currentProf.currentBuildId && currentProf.latestBuildId && currentProf.currentBuildId !== currentProf.latestBuildId),
-                      onlinePlayers: (playerListsByProfileRef.current[id] || []).map(p => ({ name: p.name, steamId: p.steamId })),
-                      recentChat: recentChatLogsRef.current[id] || [],
-                  });
-              }
-          }
 
           return newProfiles;
       });
@@ -425,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         
         const urlOptions = [];
         urlOptions.push(`SessionName=${sessionName}`);
-        urlOptions.push(`ServerPVE=${bServerPVE}`);
+        urlOptions.push(`ServerPVE=${bServerPVE ? 'true' : 'false'}`);
         
         const mapAndOptionsArg = `${map}?${urlOptions.join('?')}`;
         
@@ -475,6 +462,12 @@ const Dashboard: React.FC<DashboardProps> = ({
             }
         }
 
+        setManagerLog(prev => [
+            ...prev,
+            `[Manager] Attempting to start server "${profileToStart.profileName}"...`,
+            `[Manager] Directory: "${profileToStart.path}"`,
+        ]);
+
         // Calculate CPU Affinity Mask if enabled
         let affinityHex: string | undefined;
         let affinityDecimal: number | undefined;
@@ -520,12 +513,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             }
         }
 
-        setManagerLog(prev => [
-            ...prev,
-            `[Manager] Attempting to start server "${profileToStart.profileName}"...`,
-            `[Manager] Directory: "${profileToStart.path}"`,
-        ]);
-
         // Start server process via Tauri backend
         const pid = await invoke<number>('start_ark_server', {
             profileId: profileId,
@@ -543,11 +530,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         });
 
         updateProfile(profileId, { pid: pid });
+        crashRecoveryAttemptsRef.current[profileId] = 0;
         setManagerLog(prev => [
             ...prev,
             `[Manager] ✅ Server process successfully started with PID: ${pid}`,
             ...(bEnableCpuAffinity && affinityHex ? [`[Manager] CPU Affinity Applied: ${affinityHex} (Cores: ${cpuAffinityCores && cpuAffinityCores.length > 0 ? cpuAffinityCores.join(', ') : 'Custom Mask'})`] : []),
-            `[Manager] Command Line: ${bEnableCpuAffinity && affinityHex ? `start /affinity ${affinityHex.replace(/^0x/i, '')} ` : ''}ArkAscendedServer.exe ${launchArgs.join(' ')}`
         ]);
         
     } catch (error) {
@@ -678,11 +665,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (!profileId) return;
         const profileToStop = profilesRef.current.find(p => p.id === profileId);
         if (!profileToStop) return;
-
         if (profileToStop.status === ServerStatus.Starting && startupTimerRef.current) {
             clearTimeout(startupTimerRef.current);
             startupTimerRef.current = null;
         }
+
+        crashRecoveryAttemptsRef.current[profileId] = 0;
 
         scheduledRestartWipeProfilesRef.current.delete(profileId);
 
@@ -2364,6 +2352,28 @@ const Dashboard: React.FC<DashboardProps> = ({
                     const latestProfile = profilesRef.current.find(p => p.id === profile_id);
                     if (latestProfile && latestProfile.status === ServerStatus.Restarting) {
                         onStart(profile_id); 
+                    } else if (latestProfile && (latestProfile.status === ServerStatus.Running || latestProfile.status === ServerStatus.Starting) && latestProfile.config.autoCrashRecovery) {
+                        // CRASH DETECTED
+                        const attempts = (crashRecoveryAttemptsRef.current[profile_id] || 0) + 1;
+                        crashRecoveryAttemptsRef.current[profile_id] = attempts;
+
+                        if (attempts <= 3) {
+                            const crashMsg = `[Manager] ⚠️ CRASH DETECTED: Server "${latestProfile.profileName}" stopped unexpectedly. Attempting recovery ${attempts}/3...`;
+                            setManagerLog(prev => [...prev, crashMsg]);
+                            notificationService.sendNotification('Crash Recovery', crashMsg);
+                            discordService.sendDiscordNotification(latestProfile, '⚠️ Crash Detected', `Server stopped unexpectedly. Attempting auto-recovery ${attempts}/3...`, discordService.DiscordColors.ORANGE);
+                            
+                            // Wait a few seconds before restarting to let OS clean up resources if needed
+                            setTimeout(() => {
+                                onStart(profile_id);
+                            }, 5000);
+                        } else {
+                            const failMsg = `[Manager] ❌ CRASH RECOVERY FAILED: Server "${latestProfile.profileName}" crashed ${attempts-1} times in a row. Manual intervention required.`;
+                            setManagerLog(prev => [...prev, failMsg]);
+                            notificationService.sendNotification('Recovery Failed', failMsg);
+                            discordService.sendDiscordNotification(latestProfile, '❌ Recovery Failed', `Server crashed repeatedly. Stopping auto-recovery attempts.`, discordService.DiscordColors.RED);
+                            updateProfile(profile_id, { status: ServerStatus.Error, playerCount: 0 });
+                        }
                     } else {
                         scheduledRestartWipeProfilesRef.current.delete(profile_id);
                         if (stoppedProfile) {
@@ -2447,6 +2457,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 });
                             }
                         }
+
 
                         return { ...prev, [profileId]: updated };
                     });
@@ -2558,13 +2569,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         setProfiles(newProfiles);
         directoryService.saveProfiles(newProfiles);
 
-        // Sync with Firebase: Remove the instance from Firestore so it disappears from Mobile App
-        if (auth.currentUser) {
-            await deleteServerTelemetry(auth.currentUser.uid, profileId);
-        }
 
         if (activeProfileId === profileId) {
             setActiveProfileId(newProfiles.length > 0 ? newProfiles[0].id : null);
+        }
+
+        if (auth.currentUser) {
+            try {
+                await deleteServerTelemetry(auth.currentUser.uid, profileId);
+                console.log(`[Dashboard] Deleted remote telemetry for profile: ${profileName}`);
+            } catch (teleErr) {
+                console.warn(`[Dashboard] Non-fatal: Remote telemetry deletion failed:`, teleErr);
+            }
         }
         onShowToast(`Profile "${profileName}" deleted.`, 'success');
     }
@@ -2692,148 +2708,699 @@ const Dashboard: React.FC<DashboardProps> = ({
           console.log(`3. Target config directory resolved to: "${configPath}"`);
 
           const dirExistsBefore = await fs.exists(configPath);
-          console.log(`4. Target directory exists on disk before mkdir: ${dirExistsBefore}`);
           if (!dirExistsBefore) {
               console.log(`Creating target directory recursively: "${configPath}"...`);
               await fs.mkdir(configPath, { recursive: true });
-              console.log(`Directory created successfully.`);
           }
 
           const { config } = activeProf;
           console.log('5. ServerConfig state to be written:', config);
 
-          // GameUserSettings.ini: Server engine, network, and world server settings
+          // GameUserSettings.ini: Strict order and format implementation as per user request (v97.5+ compatibility)
           const gusIniLines = [
+              `;METADATA=(Diff=true, UseCommands=true)`,
               `[ServerSettings]`,
-              `SessionName=${config.sessionName}`,
-              `ServerPassword=${config.serverPassword || ''}`,
-              `ServerAdminPassword=${config.adminPassword || 'adminpassword'}`,
-              `RCONEnabled=${config.bEnableRcon ? 'True' : 'False'}`,
-              `RCONPort=${config.rconPort}`,
-              `RCONServerAdminPassword=${config.rconPassword || ''}`,
-              `ServerPVE=${config.bServerPVE ? 'True' : 'False'}`,
-              `ServerCrosshair=${config.bServerCrosshair ? 'True' : 'False'}`,
-              `ShowMapPlayerLocation=${config.bShowMapPlayerLocation ? 'True' : 'False'}`,
-              `AllowThirdPersonPlayer=${config.bAllowThirdPersonPlayer ? 'True' : 'False'}`,
-              `ShowFloatingDamageText=${config.bShowFloatingDamageText ? 'True' : 'False'}`,
-              `AllowFlyerCarryPvE=${config.bAllowFlyerCarryPvE ? 'True' : 'False'}`,
-              `ForceAllowCaveFlyers=${config.bForceAllowCaveFlyers ? 'True' : 'False'}`,
-              `bForceCanRideFliers=${config.bForceCanRideFliers ? 'True' : 'False'}`,
-              `DisableStructurePlacementCollision=${config.bDisableStructurePlacementCollision ? 'True' : 'False'}`,
-              `AllowCaveBuildingPvE=${config.bAllowCaveBuildingPvE ? 'True' : 'False'}`,
-              `PvEAllowStructuresAtSupplyDrops=${config.bPvEAllowStructuresAtSupplyDrops ? 'True' : 'False'}`,
-              `AlwaysAllowStructurePickup=${config.bAlwaysAllowStructurePickup ? 'True' : 'False'}`,
-              `AllowFlyingStaminaRecovery=${config.bAllowFlyingStaminaRecovery ? 'True' : 'False'}`,
-              `StructurePickupTimeAfterPlacement=${(config.structurePickupTimeAfterPlacement ?? 30.0).toFixed(6)}`,
-              `StructurePickupHoldDuration=0.500000`,
-              `DisableStructureDecayPvE=${config.bDisableStructureDecayPvE ? 'True' : 'False'}`,
-              `DisableDinoDecayPvE=${config.bDisableDinoDecayPvE ? 'True' : 'False'}`,
-              `DifficultyOffset=${config.difficultyOffset.toFixed(6)}`,
-              `OverrideOfficialDifficulty=${(config.overrideOfficialDifficulty ?? 5.0).toFixed(6)}`,
-              `XPMultiplier=${config.xpMultiplier.toFixed(6)}`,
-              `TamingSpeedMultiplier=${config.tamingSpeedMultiplier.toFixed(6)}`,
-              `HarvestAmountMultiplier=${config.harvestAmountMultiplier.toFixed(6)}`,
-              `DayTimeSpeedScale=${(config.dayTimeSpeedScale ?? 1.0).toFixed(6)}`,
-              `NightTimeSpeedScale=${config.nightTimeSpeedScale.toFixed(6)}`,
-              `AutoSavePeriodMinutes=${config.autoSavePeriodMinutes.toFixed(6)}`,
-              `GlobalVoiceChat=${config.bGlobalVoiceChat ? 'True' : 'False'}`,
-              `ProximityChat=${config.bProximityChat ? 'True' : 'False'}`,
-              `NoTributeDownloads=${config.bNoTributeDownloads ? 'True' : 'False'}`,
-              `PreventDownloadSurvivors=${config.bPreventDownloadSurvivors ? 'True' : 'False'}`,
-              `PreventDownloadItems=${config.bPreventDownloadItems ? 'True' : 'False'}`,
-              `PreventDownloadDinos=${config.bPreventDownloadDinos ? 'True' : 'False'}`,
-              `EnablePvPGamma=False`,
+              `DifficultyOffset=${activeProf.config.difficultyOffset.toFixed(1)}`,
+              `ActiveTotalConversion=`,
+              `AdminLogging=False`,
+              `AllowAnyoneBabyImprintCuddle=${activeProf.config.bAllowAnyoneBabyImprintCuddle ? 'True' : 'False'}`,
+              `AllowCaveBuildingPvE=${activeProf.config.bAllowCaveBuildingPvE ? 'True' : 'False'}`,
+              `AllowCaveBuildingPvP=${activeProf.config.bAllowCaveBuildingPvE ? 'True' : 'False'}`,
+              `AllowCrateSpawnsOnTopOfStructures=False`,
+              `AllowCryoFridgeOnSaddle=False`,
+              `AllowFlyerCarryPvE=${activeProf.config.bAllowFlyerCarryPvE ? 'True' : 'False'}`,
+              `AllowFlyingStaminaRecovery=${activeProf.config.bAllowFlyingStaminaRecovery ? 'True' : 'False'}`,
+              `AllowHideDamageSourceFromLogs=True`,
+              `AllowHitMarkers=True`,
+              `AllowIntegratedSPlusStructures=True`,
+              `AllowMultipleAttachedC4=False`,
+              `AllowRaidDinoFeeding=False`,
+              `AllowSharedConnections=False`,
+              `AllowTekSuitPowersInGenesis=False`,
+              `AllowThirdPersonPlayer=${activeProf.config.bAllowThirdPersonPlayer ? 'True' : 'False'}`,
+              `AlwaysAllowStructurePickup=${activeProf.config.bAlwaysAllowStructurePickup ? 'True' : 'False'}`,
+              `AlwaysNotifyPlayerLeft=False`,
+              `AutoDestroyDecayedDinos=False`,
+              `AutoDestroyOldStructuresMultiplier=0.0`,
+              `AutoSavePeriodMinutes=${activeProf.config.autoSavePeriodMinutes.toFixed(1)}`,
+              `BanListURL="http://arkdedicated.com/banlist.txt"`,
+              `bForceCanRideFliers=${activeProf.config.bForceCanRideFliers ? 'True' : 'False'}`,
+              `ClampItemSpoilingTimes=False`,
+              `ClampItemStats=False`,
+              `ClampResourceHarvestDamage=False`,
+              `CustomDynamicConfigUrl=`,
+              `CustomLiveTuningUrl=`,
+              `DestroyTamesOverTheSoftTameLimit=False`,
+              `DestroyUnconnectedWaterPipes=False`,
+              `DisableCryopodEnemyCheck=False`,
+              `DisableCryopodFridgeRequirement=False`,
+              `DisableDinoDecayPvE=${activeProf.config.bDisableDinoDecayPvE ? 'True' : 'False'}`,
+              `DisableImprintDinoBuff=${activeProf.config.bDisableImprintDinoBuff ? 'True' : 'False'}`,
               `DisablePvEGamma=False`,
+              `DisableStructureDecayPvE=${activeProf.config.bDisableStructureDecayPvE ? 'True' : 'False'}`,
+              `DisableWeatherFog=False`,
+              `DontAlwaysNotifyPlayerJoined=False`,
+              `EnableExtraStructurePreventionVolumes=False`,
+              `EnablePvPGamma=False`,
+              `FastDecayUnsnappedCoreStructures=False`,
+              `ForceAllStructureLocking=False`,
+              `globalVoiceChat=${activeProf.config.bGlobalVoiceChat ? 'True' : 'False'}`,
+              `IgnoreLimitMaxStructuresInRangeTypeFlag=False`,
+              `ItemStackSizeMultiplier=1.0`,
+              `KickIdlePlayersPeriod=3600.0`,
+              `MaxGateFrameOnSaddles=0`,
+              `MaxHexagonsPerCharacter=2000000000`,
+              `MaxPersonalTamedDinos=0`,
+              `MaxPlatformSaddleStructureLimit=75`,
+              `MaxTamedDinos=${(activeProf.config.maxTamedDinos || 5000.0).toFixed(1)}`,
+              `MaxTamedDinos_SoftTameLimit=5000`,
+              `MaxTamedDinos_SoftTameLimit_CountdownForDeletionDuration=604800`,
+              `MaxTributeCharacters=10`,
+              `MaxTributeDinos=20`,
+              `MaxTributeItems=50`,
+              `NonPermanentDiseases=False`,
+              `NPCNetworkStasisRangeScalePlayerCountStart=0`,
+              `NPCNetworkStasisRangeScalePlayerCountEnd=0`,
+              `NPCNetworkStasisRangeScalePercentEnd=0.55000001`,
+              `OnlyAutoDestroyCoreStructures=False`,
+              `OnlyDecayUnsnappedCoreStructures=False`,
+              `OverrideOfficialDifficulty=${(activeProf.config.overrideOfficialDifficulty ?? 5.0).toFixed(1)}`,
+              `OverrideStructurePlatformPrevention=False`,
+              `OxygenSwimSpeedStatMultiplier=1.0`,
+              `PerPlatformMaxStructuresMultiplier=1.0`,
+              `PersonalTamedDinosSaddleStructureCost=0`,
+              `PlatformSaddleBuildAreaBoundsMultiplier=1.0`,
+              `PreventDiseases=False`,
+              `PreventMateBoost=False`,
+              `PreventOfflinePvP=False`,
+              `PreventOfflinePvPInterval=0.0`,
+              `PreventSpawnAnimations=False`,
+              `PreventTribeAlliances=False`,
+              `ProximityChat=${activeProf.config.bProximityChat ? 'True' : 'False'}`,
+              `PvEAllowStructuresAtSupplyDrops=${activeProf.config.bPvEAllowStructuresAtSupplyDrops ? 'True' : 'False'}`,
+              `PvEDinoDecayPeriodMultiplier=1.0`,
+              `PvPDinoDecay=False`,
+              `PvPStructureDecay=False`,
+              `RaidDinoCharacterFoodDrainMultiplier=${(activeProf.config.dinoCharacterFoodDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `RandomSupplyCratePoints=False`,
+              `RCONEnabled=${activeProf.config.bEnableRcon ? 'True' : 'False'}`,
+              `RCONPort=${activeProf.config.rconPort}`,
+              `RCONServerGameLogBuffer=600.0`,
+              `ServerAdminPassword=${activeProf.config.adminPassword || 'adminpassword'}`,
+              `ServerAutoForceRespawnWildDinosInterval=0.0`,
+              `ServerCrosshair=${activeProf.config.bServerCrosshair ? 'True' : 'False'}`,
+              `ServerForceNoHUD=False`,
+              `ServerHardcore=False`,
+              `ServerPassword=${activeProf.config.serverPassword || ''}`,
+              `ShowFloatingDamageText=${activeProf.config.bShowFloatingDamageText ? 'True' : 'False'}`,
+              `ShowMapPlayerLocation=${activeProf.config.bShowMapPlayerLocation ? 'True' : 'False'}`,
+              `SpectatorPassword=123321`,
+              `StructurePickupHoldDuration=0.5`,
+              `StructurePickupTimeAfterPlacement=${(activeProf.config.structurePickupTimeAfterPlacement ?? 30.0).toFixed(1)}`,
+              `StructurePreventResourceRadiusMultiplier=1.0`,
+              `TamedDinoDamageMultiplier=${(activeProf.config.tamedDinoDamageMultiplier ?? 1.0).toFixed(1)}`,
+              `TamedDinoResistanceMultiplier=${(activeProf.config.tamedDinoResistanceMultiplier ?? 1.0).toFixed(1)}`,
+              `TheMaxStructuresInRange=10500`,
+              `TribeLogDestroyedEnemyStructures=False`,
+              `TribeNameChangeCooldown=15.0`,
+              `UseFjordurTraversalBuff=False`,
+              `UseOptimizedHarvestingHealth=False`,
+              `CrossARKAllowForeignDinoDownloads=False`,
+              `MinimumDinoReuploadInterval=0.0`,
+              `noTributeDownloads=${activeProf.config.bNoTributeDownloads ? 'True' : 'False'}`,
+              `PreventDownloadDinos=${activeProf.config.bPreventDownloadDinos ? 'True' : 'False'}`,
+              `PreventDownloadItems=${activeProf.config.bPreventDownloadItems ? 'True' : 'False'}`,
+              `PreventDownloadSurvivors=${activeProf.config.bPreventDownloadSurvivors ? 'True' : 'False'}`,
+              `PreventUploadDinos=False`,
+              `PreventUploadItems=False`,
+              `PreventUploadSurvivors=False`,
+              `TributeCharacterExpirationSeconds=0`,
+              `TributeDinoExpirationSeconds=86400`,
+              `TributeItemExpirationSeconds=86400`,
+              `CryopodNerfDamageMult=0.0099999998`,
+              `CryopodNerfDuration=0.0`,
+              `CryopodNerfIncomingDamageMultPercent=0.0`,
+              `EnableCryopodNerf=False`,
+              `EnableCryoSicknessPVE=False`,
+              `BadWordListURL="http://arkdedicated.com/badwords.txt"`,
+              `BadWordWhiteListURL="http://arkdedicated.com/goodwords.txt"`,
+              `AdminListURL=`,
+              `bFilterCharacterNames=False`,
+              `bFilterChat=False`,
+              `bFilterTribeNames=False`,
+              `AllowDeprecatedStructures=False`,
+              `bAllowFlyerCarryPVE=${activeProf.config.bAllowFlyerCarryPvE ? 'True' : 'False'}`,
+              `bDisableStructureDecayPvE=${activeProf.config.bDisableStructureDecayPvE ? 'True' : 'False'}`,
+              `ForceFlyerExplosives=False`,
+              `MaxStructuresInRange=1300`,
+              `PvEStructureDecayDestructionPeriod=0`,
+              `AllowedCheatersURL=`,
+              `ChatLogFileSplitIntervalSeconds=86400`,
+              `ChatLogFlushIntervalSeconds=86400`,
+              `ChatLogMaxAgeInDays=5`,
+              `DontRestoreBackup=False`,
+              `EnableAFKKickPlayerCountPercent=0.0`,
+              `EnableMeshBitingProtection=True`,
+              `FreezeReaperPregnancy=False`,
+              `LogChatMessages=False`,
+              `MaxStructuresInSmallRadius=0`,
+              `MaxStructuresToProcess=0`,
+              `PreventOutOfTribePinCodeUse=False`,
+              `RadiusStructuresInSmallRadius=0.0`,
+              `ServerEnableMeshChecking=False`,
+              `TribeMergeAllowed=True`,
+              `TribeMergeCooldown=0.0`,
+              `UpdateAllowedCheatersInterval=600.0`,
+              `UseExclusiveList=False`,
+              `StartTimeHour=-1`,
+              `DinoCharacterFoodDrainMultiplier=${(config.dinoCharacterFoodDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `DinoCharacterHealthRecoveryMultiplier=${(config.dinoCharacterHealthRecoveryMultiplier ?? 1.0).toFixed(1)}`,
+              `DinoCharacterStaminaDrainMultiplier=${(config.dinoCharacterStaminaDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `DinoCountMultiplier=${(config.dinoCountMultiplier ?? 1.0).toFixed(1)}`,
+              `DinoDamageMultiplier=${(config.dinoDamageMultiplier ?? 1.0).toFixed(1)}`,
+              `DinoResistanceMultiplier=${(config.dinoResistanceMultiplier ?? 1.0).toFixed(1)}`,
+              `HarvestAmountMultiplier=${(config.harvestAmountMultiplier ?? 1.0).toFixed(1)}`,
+              `HarvestHealthMultiplier=${(config.harvestHealthMultiplier ?? 1.0).toFixed(1)}`,
+              `NightTimeSpeedScale=${(config.nightTimeSpeedScale ?? 1.0).toFixed(1)}`,
+              `PlayerCharacterFoodDrainMultiplier=${(config.playerCharacterFoodDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `PlayerCharacterHealthRecoveryMultiplier=${(config.playerCharacterHealthRecoveryMultiplier ?? 1.0).toFixed(1)}`,
+              `PlayerCharacterStaminaDrainMultiplier=${(config.playerCharacterStaminaDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `PlayerCharacterWaterDrainMultiplier=${(config.playerCharacterWaterDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `PlayerDamageMultiplier=${(config.playerDamageMultiplier ?? 1.0).toFixed(1)}`,
+              `PlayerResistanceMultiplier=${(config.playerResistanceMultiplier ?? 1.0).toFixed(1)}`,
+              `PvEStructureDecayPeriodMultiplier=${(config.pveStructureDecayPeriodMultiplier ?? 1.0).toFixed(1)}`,
+              `ResourcesRespawnPeriodMultiplier=${(config.resourcesRespawnPeriodMultiplier ?? 1.0).toFixed(1)}`,
+              `StructureDamageMultiplier=${(config.structureDamageMultiplier ?? 1.0).toFixed(1)}`,
+              `StructureResistanceMultiplier=${(config.structureResistanceMultiplier ?? 1.0).toFixed(1)}`,
+              `XPMultiplier=${(config.xpMultiplier ?? 1.0).toFixed(1)}`,
+              `NewMaxStructuresInRange=${config.newMaxStructuresInRange ?? 6000}`,
+              `ImplantSuicideCD=28800`,
+              `serverPVE=${activeProf.config.bServerPVE ? 'True' : 'False'}`,
+              `NeedsPowerToActivateAquaticCompartments=True`,
+              `OverrideSecondsUntilBuriedTreasureAutoReveals=1209600`,
+              `ForceGachaUnhappyInCaves=True`,
+              `LimitBunkersPerTribe=True`,
+              `LimitBunkersPerTribeNum=3`,
+              `AllowRidingDinosInsideBunkers=True`,
+              `AllowDinoAIInsideBunkers=True`,
+              `MinDistanceBetweenBunkers=3000`,
+              `EnemyAccessBunkerHPThreshold=0.25`,
+              `BunkerUnderHPThresholdDmgMultiplier=0.0500000007`,
+              `CryoHospitalHoursToRegenHP=1`,
+              `CryoHospitalHoursToRegenFood=24`,
+              `CryoHospitalHoursToDrainTorpor=1`,
+              `CryoHospitalMatingCooldownReduction=2`,
+              `BloodforgeReinforceExtraDurability=0.300000012`,
+              `BloodforgeReinforceResourceCostMultiplier=3`,
+              `BloodforgeReinforceSpeedMultiplier=0.100000001`,
+              `OutpostSigilRewardMultiplier=1`,
+              `ElementalIslandShutdownFrequencyMultiplier=1`,
           ];
 
-          if (config.mods && config.mods.trim()) {
-              gusIniLines.push(`ActiveMods=${config.mods.trim()}`);
+          if (activeProf.config.mods && activeProf.config.mods.trim()) {
+              gusIniLines.push(`ActiveMods=${activeProf.config.mods.trim()}`);
           }
 
           // Custom lines appended to GameUserSettings.ini [ServerSettings]
-          if (config.customGameUserSettingsIni && config.customGameUserSettingsIni.trim()) {
+          if (activeProf.config.customGameUserSettingsIni && activeProf.config.customGameUserSettingsIni.trim()) {
               gusIniLines.push(``, `; --- Custom GameUserSettings.ini Lines ---`);
-              config.customGameUserSettingsIni.split(/\r?\n/).forEach(line => {
+              activeProf.config.customGameUserSettingsIni.split(/\r?\n/).forEach(line => {
                   if (line.trim()) gusIniLines.push(line);
               });
           }
 
           gusIniLines.push(
               ``,
-              `[MultiHome]`,
-              `MultiHome=${config.rconIp || '0.0.0.0'}`,
+              `[MessageOfTheDay]`,
+              `Duration=20`,
+              `Message=`,
+              ``,
+              `[ScalabilityGroups]`,
+              `sg.ResolutionQuality=0`,
+              `sg.ViewDistanceQuality=0`,
+              `sg.AntiAliasingQuality=0`,
+              `sg.ShadowQuality=1`,
+              `sg.GlobalIlluminationQuality=0`,
+              `sg.ReflectionQuality=1`,
+              `sg.PostProcessQuality=0`,
+              `sg.TextureQuality=0`,
+              `sg.EffectsQuality=0`,
+              `sg.FoliageQuality=0`,
+              `sg.ShadingQuality=0`,
+              `sg.LandscapeQuality=0`,
+              ``,
+              `[/Script/ShooterGame.ShooterGameUserSettings]`,
+              `AdvancedGraphicsQuality=0`,
+              `MasterAudioVolume=1.000000`,
+              `MusicAudioVolume=0.800000`,
+              `SFXAudioVolume=1.000000`,
+              `VoiceAudioVolume=1.000000`,
+              `SoundUIAudioVolume=1.000000`,
+              `CharacterAudioVolume=1.000000`,
+              `StructureTooltipMaxSpeedMultiply=0.000000`,
+              `UIScaling=1.000000`,
+              `UIQuickbarScaling=0.750000`,
+              `CameraShakeScale=0.650000`,
+              `bFirstPersonRiding=False`,
+              `bThirdPersonPlayer=True`,
+              `bShowStatusNotificationMessages=True`,
+              `TrueSkyQuality=0.270000`,
+              `FOVMultiplier=1.000000`,
+              `GroundClutterDensity=1.000000`,
+              `bFilmGrain=False`,
+              `bMotionBlur=True`,
+              `bUseGamepadSpeaker=True`,
+              `bUseDFAO=False`,
+              `bUseSSAO=False`,
+              `bShowChatBox=True`,
+              `bCameraViewBob=True`,
+              `bInvertLookY=False`,
+              `bFloatingNames=True`,
+              `bChatBubbles=True`,
+              `bHideServerInfo=False`,
+              `bJoinNotifications=False`,
+              `bDisableNameYourTamePopup=False`,
+              `MinimalFloatingNameSetting=False`,
+              `bCraftablesShowAllItems=False`,
+              `bLocalInventoryItemsShowAllItems=False`,
+              `bLocalInventoryCraftingShowAllItems=True`,
+              `bRemoteInventoryItemsShowAllItems=False`,
+              `bRemoteInventoryCraftingShowAllItems=False`,
+              `bRemoteInventoryShowEngrams=True`,
+              `bEnableLowLightEnhancement=False`,
+              `bEnableFluidInteraction=False`,
+              `bDisableHLOD=False`,
+              `LookLeftRightSensitivity=1.000000`,
+              `LookUpDownSensitivity=1.000000`,
+              `TPVCameraHorizontalOffsetFactor=0.000000`,
+              `GraphicsQuality=0`,
+              `ActiveLingeringWorldTiles=10`,
+              `ClientNetQuality=3`,
+              `TheGammaCorrection=0.500000`,
+              `LastServerSearchType=0`,
+              `LastServerSort=2`,
+              `LastPVESearchType=-1`,
+              `LastDLCTypeSearchType=-1`,
+              `LastServerSortAsc=True`,
+              `LastAutoFavorite=True`,
+              `LastServerSearchHideFull=False`,
+              `LastServerSearchProtected=False`,
+              `LastPlatformSpecificServerSearch=False`,
+              `HideItemTextOverlay=True`,
+              `bForceShowItemNames=False`,
+              `bDistanceFieldShadowing=True`,
+              `bDisableShadows=False`,
+              `LODScalar=1.000000`,
+              `bToggleToTalk=False`,
+              `HighQualityMaterials=True`,
+              `HighQualitySurfaces=True`,
+              `bTemperatureF=False`,
+              `bDisableTorporEffect=False`,
+              `bChatShowSteamName=False`,
+              `bChatShowTribeName=True`,
+              `bReverseTribeLogOrder=False`,
+              `EmoteKeyBind1=0`,
+              `EmoteKeyBind2=0`,
+              `bNoBloodEffects=False`,
+              `bLowQualityVFX=False`,
+              `bSpectatorManualFloatingNames=False`,
+              `bSuppressAdminIcon=False`,
+              `bUseSimpleDistanceMovement=False`,
+              `bHasSavedGame=True`,
+              `bDisableMeleeCameraSwingAnims=False`,
+              `bPreventInventoryOpeningSounds=False`,
+              `bPreventBiomeWalls=False`,
+              `bPreventHitMarkers=False`,
+              `bPreventCrosshair=False`,
+              `bPreventColorizedItemNames=False`,
+              `bHighQualityLODs=False`,
+              `bExtraLevelStreamingDistance=False`,
+              `bEnableColorGrading=False`,
+              `VSyncMode=1`,
+              `DOFSettingInterpTime=0.000000`,
+              `LastJoinedSessionPerCategory=" "`,
+              `LastSessionCategoryJoined=-1`,
+              `bDisableMenuTransitions=False`,
+              `bEnableInventoryItemTooltips=True`,
+              `bRemoteInventoryShowCraftables=False`,
+              `bNoTooltipDelay=False`,
+              `LocalItemSortType=0`,
+              `LocalCraftingSortType=0`,
+              `RemoteItemSortType=0`,
+              `RemoteCraftingSortType=0`,
+              `VersionMetaTag=4`,
+              `ShowExplorerNoteSubtitles=False`,
+              `DisableMenuMusic=False`,
+              `DisableDefaultCharacterItems=False`,
+              `DisableLoadScreenMusic=False`,
+              `bRequestDefaultCharacterItemsOnce=False`,
+              `bHasSeenGen2Intro=False`,
+              `CinematicForNoteShouldReset=()`,
+              `bHasSetupDifficultySP=False`,
+              `bHasSetupVisualSettings=False`,
+              `agreedToTerms=()`,
+              `bHasRunAutoSettings=False`,
+              `bHideFloatingPlayerNames=False`,
+              `bHideGamepadItemSelectionModifier=False`,
+              `bToggleExtendedHUDInfo=False`,
+              `PlayActionWheelClickSound=True`,
+              `PlayHUDRolloverSound=True`,
+              `CompanionReactionVerbosity=3`,
+              `EnableEnvironmentalReactions=True`,
+              `EnableRespawnReactions=True`,
+              `EnableDeathReactions=True`,
+              `EnableSayHelloReactions=True`,
+              `EnableEmoteReactions=True`,
+              `EnableMovementSounds=True`,
+              `DisableSubtitles=False`,
+              `bEnableASACamera=True`,
+              `ConsoleAccess=False`,
+              `CompanionSubtitleVerbosityLevel=3`,
+              `CompanionIsHiddenState=False`,
+              `MaxAscensionLevel=0`,
+              `bHostSessionHasBeenOpened=False`,
+              `bForceTPVCameraOffset=False`,
+              `bDisableTPVCameraInterpolation=False`,
+              `bEnableHDROutput=False`,
+              `HDRDisplayMinLuminance=-4.000000`,
+              `HDRDisplayMidLuminance=20.000000`,
+              `HDRDisplayMaxLuminance=1400.000000`,
+              `FoliageInteractionDistance=0.010000`,
+              `FoliageInteractionDistanceLimit=0.500000`,
+              `FoliageInteractionQuantityLimit=0.500000`,
+              `bFPVClimbingGear=False`,
+              `bFPVGlidingGear=False`,
+              `bHasInitializedScreenPercentage=False`,
+              `CameraZoomPerDinoNameTag=()`,
+              `CameraHeightPerDinoNameTag=()`,
+              `PhotomodePresets_Camera=()`,
+              `PhotomodePresets_Movement=()`,
+              `PhotomodePresets_Splines=()`,
+              `PhotomodePresets_PPs=()`,
+              `PhotomodePresets_Targeting=()`,
+              `PhotomodeLastUsedSettings=()`,
+              `MaxLastDeathMark=5`,
+              `bSaveLastDeathMark=True`,
+              `bShowPingsOnMap=True`,
+              `bShowDinosOnMap=True`,
+              `bShowWaypointsOnMap=True`,
+              `bShowPlayersOnMap=True`,
+              `bShowBedsOnMap=True`,
+              `AimAssistStrengthMultiplier=1.000000`,
+              `bForceShowRadialWheelTexts=False`,
+              `bHideStructurePlacementCrosshair=False`,
+              `SavedMainMapZoom=1.000000`,
+              `SavedOverlayMapZoom=1.000000`,
+              `bMinimalUI=False`,
+              `FloatingTooltipStructureMode=DEFAULT`,
+              `FloatingTooltipDinoMode=DEFAULT`,
+              `FloatingTooltipDroppedItemsMode=DEFAULT`,
+              `FloatingTooltipPlayerMode=DEFAULT`,
+              `TopNotificationMode=DEFAULT`,
+              `ItemNotificationMode=MINIMAL`,
+              `bMinimapOverlayUseLowOpacity=False`,
+              `FilterTypeInventoryLocal=9`,
+              `FilterTypeInventoryRemote=9`,
+              `bUseGamepadAimAssist=RangeWeaponAlwaysOn`,
+              `Gamma1=2.200000`,
+              `Gamma2=3.000000`,
+              `bDisableBloom=True`,
+              `bDisableLightShafts=False`,
+              `bUseLowQualityLevelStreaming=True`,
+              `bUseDistanceFieldAmbientOcclusion=False`,
+              `bPreventItemCraftingSounds=False`,
+              `bHighQualityAnisotropicFiltering=False`,
+              `AmbientSoundVolume=1.000000`,
+              `bUseOldThirdPersonCameraTrace=False`,
+              `bUseOldThirdPersonCameraOffset=False`,
+              `bShowedGenesisDLCBackground=False`,
+              `bShowedGenesis2DLCBackground=False`,
+              `bHasStartedTheGameOnce=False`,
+              `bViewedAnimatedSeriesTrailer=False`,
+              `bViewedARK2Trailer=False`,
+              `bShowRTSKeyBinds=True`,
+              `bHasCompletedGen2=False`,
+              `bEnableFootstepDecals=False`,
+              `bEnableFootstepParticles=False`,
+              `bShowInfoButtons=True`,
+              `bDisablePaintings=False`,
+              `StopExplorerNoteAudioOnClose=False`,
+              `bVibration=True`,
+              `bUIVibration=False`,
+              `radialSelectionSpeed=0.650000`,
+              `bDisableVirtualCursor=False`,
+              `PreventDetailGraphics=False`,
+              `GroundClutterRadius=0`,
+              `HFSQuality=0`,
+              `bMenuGyro=False`,
+              `gyroSensitivity=0.500000`,
+              `virtualCursorSensitivity=0.500000`,
+              `BubbleParticlesMultiplier=1.000000`,
+              `CrosshairScale=1.000000`,
+              `CrosshairOpacity=1.000000`,
+              `CrosshairColor=(R=1.000000,G=1.000000,B=1.000000,A=1.000000)`,
+              `CrosshairColorPickerValue=(X=0.000000,Y=0.000000)`,
+              `CrosshairColorOverEnemy=(R=0.000000,G=0.376471,B=1.000000,A=1.000000)`,
+              `CrosshairColorPickerValueOverEnemy=(X=0.010000,Y=0.500000)`,
+              `CrosshairColorOverAlly=(R=0.000000,G=1.000000,B=0.000000,A=1.000000)`,
+              `CrosshairColorPickerValueOverAlly=(X=0.260000,Y=0.440000)`,
+              `CrosshairColorHitmark=(R=1.000000,G=0.000000,B=0.000000,A=1.000000)`,
+              `CrosshairColorPickerValueHitmark=(X=0.010000,Y=0.640000)`,
+              `CurrentCameraModeIndex=2`,
+              `CurrentDinoCameraModeIndex=1`,
+              `bShowAmbientInsectsVFX=True`,
+              `TextChatFilterType=0`,
+              `VoiceChatFilterType=0`,
+              `bAutomaticallyCreateWaypointOnTamingCreatures=True`,
+              `bAutomaticallyCreatePOIOnDeath=True`,
+              `bEnableDLSS=False`,
+              `bEnableDLFG=False`,
+              `bEnableReflex=False`,
+              `SuperResolutionQualityLevel=0`,
+              `bOCIOIsEnabled=True`,
+              `OCIOAsset=/Game/ASA/Environment/Common/Color/OCIO_aces_v13_cg.OCIO_aces_v13_cg`,
+              `OCIOColorSpace=0`,
+              `OCIODisplayView=0`,
+              `bUseVSync=False`,
+              `bUseDynamicResolution=False`,
+              `ResolutionSizeX=1280`,
+              `ResolutionSizeY=720`,
+              `LastUserConfirmedResolutionSizeX=1280`,
+              `LastUserConfirmedResolutionSizeY=720`,
+              `displayIndex=-1`,
+              `DisplayID=`,
+              `FullscreenMode=1`,
+              `LastConfirmedFullscreenMode=1`,
+              `PreferredFullscreenMode=1`,
+              `Version=5`,
+              `AudioQualityLevel=0`,
+              `LastConfirmedAudioQualityLevel=0`,
+              `FrameRateLimit=60.000000`,
+              `DesiredScreenWidth=1280`,
+              `DesiredScreenHeight=720`,
+              `LastUserConfirmedDesiredScreenWidth=1280`,
+              `LastUserConfirmedDesiredScreenHeight=720`,
+              `LastRecommendedScreenWidth=-1.000000`,
+              `LastRecommendedScreenHeight=-1.000000`,
+              `LastCPUBenchmarkResult=-1.000000`,
+              `LastGPUBenchmarkResult=-1.000000`,
+              `LastGPUBenchmarkMultiplier=1.000000`,
+              `bUseHDRDisplayOutput=False`,
+              `HDRDisplayOutputNits=1000`,
+              `bFirstPersonShipDriving=False`,
+              `bUserMotionBlur=False`,
+              `bTextChatBubbles=True`,
+              `bReceiveDiscordNotifications=True`,
+              `bReceiveDiscordFriendRequests=True`,
+              `bCustomCosmeticsShowAllItems=False`,
+              `bCinematicLightingMode=False`,
+              `LastDLCTypeSearchString=`,
+              `ShowPlayerServers=False`,
+              `VSyncModeType=0`,
+              `bCustomCosmeticDefaultItemsTab=False`,
+              `bCustomCosmeticLocalTabExpanded=False`,
+              `WorldMarketSortType=0`,
+              `LocalMarketSortType=0`,
+              `WorldMarketSortType_Ally=0`,
+              `LocalMarketSortType_Ally=0`,
+              `MarketFilterType=9`,
+              `DisableCosmeticsDynamicDownloading=False`,
+              `bDontReduceGameResolutionInInventory=False`,
+              `bDisableVirtualKeyboard=False`,
+              `DynamicDownloadSpeed=500`,
+              `SelectedMainMenuIntro=Auto`,
+              `GUI3DWidgetQuality=0.000000`,
+              `bShowMissionsOnMap=True`,
+              `ScreenPercentage=0.500000`,
+              `HideEnemyStructureCosmeticsMode=NONE`,
+              `FilterTypeCustomCosmeticItems=0`,
+              `FilterTypeCustomCosmeticSkins=0`,
+              `LastBrowsedDLCVersion=0`,
+              `bHasLoadedLostColonyMainMenuOnce=False`,
+              `CustomCosmeticSettings=()`,
+              `bCustomCosmeticsDefaultSupressed=False`,
+              `EnableDLSS=-1`,
+              `FrameMultiplier=4`,
+              `LastUserConfirmedDisplayID=`,
+              `LastUserConfirmedDisplayIndex=-1`,
+              `DynamicResolutionFrameTarget=0.000000`,
+              `bUseHDRDisplayCalibration=False`,
+              `HDRPaperWhiteNits=203.000000`,
+              `HDRUILuminanceNits=203.000000`,
+              `bIsHDRUILuminanceSeparate=False`,
+              ``,
+              `[/Script/Engine.GameUserSettings]`,
+              `bUseDesiredScreenHeight=False`,
+              ``,
+              `[SessionSettings]`,
+              `SessionName=${activeProf.config.sessionName}`,
+              `Port=${activeProf.config.gamePort}`,
+              ``,
+              `[Ragnarok]`,
+              `AllowMultipleTamedUnicorns=False`,
+              `EnableVolcano=True`,
+              `UnicornSpawnInterval=24`,
+              `VolcanoIntensity=1`,
+              `VolcanoInterval=0`,
+              ``,
+              `[Startup]`,
+              `FrameGenerationMethod=-1`,
+              `FrameGenerationMultiplier=2`,
+              `SuperResolutionSystem=-1`,
+              `FSRQualityMode=4`,
+              `DLSSQualityMode=7`,
+              `LowLatencyEnabled=-1`,
               ``,
               `[/Script/Engine.GameSession]`,
-              `MaxPlayers=${config.maxPlayers}`
+              `MaxPlayers=${activeProf.config.maxPlayers}`,
           );
 
           const gusFilePath = await join(configPath, 'GameUserSettings.ini');
           const gusText = gusIniLines.join('\r\n');
-          console.log(`6. Writing GameUserSettings.ini -> Path: "${gusFilePath}" (${gusIniLines.length} lines, ${gusText.length} chars)`);
           
           if (typeof fs.writeTextFile === 'function') {
-              console.log('   Using fs.writeTextFile...');
               await fs.writeTextFile(gusFilePath, gusText);
           } else {
-              console.log('   Using fs.writeFile (encoded bytes)...');
               await fs.writeFile(gusFilePath, new TextEncoder().encode(gusText));
           }
 
-          const gusExistsAfter = await fs.exists(gusFilePath);
-          console.log(`   GameUserSettings.ini write complete. Exists verification: ${gusExistsAfter}`);
+          console.log(`   GameUserSettings.ini write complete.`);
 
-          // Game.ini: Gameplay rules, breeding, drains, advanced XP, speed leveling, and tribe settings
+          // Game.ini: Strict parameter list and order as per user request
           const gameIniLines = [
               `[/script/shootergame.shootergamemode]`,
-              `MatingIntervalMultiplier=${config.matingIntervalMultiplier.toFixed(6)}`,
-              `MatingSpeedMultiplier=${(config.matingSpeedMultiplier ?? 1.0).toFixed(6)}`,
-              `EggHatchSpeedMultiplier=${config.eggHatchSpeedMultiplier.toFixed(6)}`,
-              `BabyMatureSpeedMultiplier=${config.babyMatureSpeedMultiplier.toFixed(6)}`,
-              `BabyFoodConsumptionSpeedMultiplier=${(config.babyFoodConsumptionSpeedMultiplier ?? 1.0).toFixed(6)}`,
-              `BabyCuddleIntervalMultiplier=${(config.babyCuddleIntervalMultiplier ?? 1.0).toFixed(6)}`,
-              `BabyCuddleGracePeriodMultiplier=${(config.babyCuddleGracePeriodMultiplier ?? 1.0).toFixed(6)}`,
-              `BabyCuddleLoseImprintQualitySpeedMultiplier=${(config.babyCuddleLoseImprintQualitySpeedMultiplier ?? 1.0).toFixed(6)}`,
-              `BabyImprintingStatScaleMultiplier=${(config.babyImprintingStatScaleMultiplier ?? 1.0).toFixed(6)}`,
-              `bAllowAnyoneBabyImprintCuddle=${config.bAllowAnyoneBabyImprintCuddle ? 'True' : 'False'}`,
-              `bDisableImprintDinoBuff=${config.bDisableImprintDinoBuff ? 'True' : 'False'}`,
-              `PlayerCharacterWaterDrainMultiplier=${config.playerCharacterWaterDrainMultiplier.toFixed(6)}`,
-              `PlayerCharacterFoodDrainMultiplier=${config.playerCharacterFoodDrainMultiplier.toFixed(6)}`,
-              `PlayerCharacterStaminaDrainMultiplier=${(config.playerCharacterStaminaDrainMultiplier ?? 1.0).toFixed(6)}`,
-              `PlayerCharacterHealthRecoveryMultiplier=${(config.playerCharacterHealthRecoveryMultiplier ?? 1.0).toFixed(6)}`,
-              `DinoCharacterFoodDrainMultiplier=${config.dinoCharacterFoodDrainMultiplier.toFixed(6)}`,
-              `DinoCharacterStaminaDrainMultiplier=${config.dinoCharacterStaminaDrainMultiplier.toFixed(6)}`,
-              `DinoCharacterHealthRecoveryMultiplier=${config.dinoCharacterHealthRecoveryMultiplier.toFixed(6)}`,
-              `TamedDinoDamageMultiplier=${config.tamedDinoDamageMultiplier.toFixed(6)}`,
-              `TamedDinoResistanceMultiplier=${config.tamedDinoResistanceMultiplier.toFixed(6)}`,
-              `HarvestHealthMultiplier=${config.harvestHealthMultiplier.toFixed(6)}`,
-              `GlobalSpoilingTimeMultiplier=${config.itemSpoilingTimeMultiplier.toFixed(6)}`,
-              `FuelConsumptionIntervalMultiplier=${config.fuelConsumptionIntervalMultiplier.toFixed(6)}`,
-              `GlobalItemDecompositionTimeMultiplier=${(config.itemDecompositionTimeMultiplier ?? 1.0).toFixed(6)}`,
-              `GlobalCorpseDecompositionTimeMultiplier=${(config.corpseDecompositionTimeMultiplier ?? 1.0).toFixed(6)}`,
-              `CropGrowthSpeedMultiplier=${(config.cropGrowthSpeedMultiplier ?? 1.0).toFixed(6)}`,
-              `CropDecaySpeedMultiplier=${(config.cropDecaySpeedMultiplier ?? 1.0).toFixed(6)}`,
-              `LayEggIntervalMultiplier=${(config.layEggIntervalMultiplier ?? 1.0).toFixed(6)}`,
-              `PoopIntervalMultiplier=${(config.poopIntervalMultiplier ?? 1.0).toFixed(6)}`,
-              `KillXPMultiplier=${(config.killXPMultiplier ?? 1.0).toFixed(6)}`,
-              `HarvestXPMultiplier=${(config.harvestXPMultiplier ?? 1.0).toFixed(6)}`,
-              `CraftXPMultiplier=${(config.craftXPMultiplier ?? 1.0).toFixed(6)}`,
-              `GenericXPMultiplier=${(config.genericXPMultiplier ?? 1.0).toFixed(6)}`,
-              `SpecialXPMultiplier=${(config.specialXPMultiplier ?? 1.0).toFixed(6)}`,
-              `bDisableFriendlyFire=${config.bDisableFriendlyFire ? 'True' : 'False'}`,
-              `bPvEDisableFriendlyFire=${config.bPvEDisableFriendlyFire ? 'True' : 'False'}`,
+              `AutoPvEStartTimeSeconds=0.0`,
+              `AutoPvEStopTimeSeconds=0.0`,
+              `BabyCuddleGracePeriodMultiplier=${(config.babyCuddleGracePeriodMultiplier ?? 1.0).toFixed(1)}`,
+              `BabyCuddleIntervalMultiplier=${(config.babyCuddleIntervalMultiplier ?? 1.0).toFixed(1)}`,
+              `BabyCuddleLoseImprintQualitySpeedMultiplier=${(config.babyCuddleLoseImprintQualitySpeedMultiplier ?? 1.0).toFixed(1)}`,
+              `BabyFoodConsumptionSpeedMultiplier=${(config.babyFoodConsumptionSpeedMultiplier ?? 1.0).toFixed(1)}`,
+              `BabyImprintAmountMultiplier=1.0`,
+              `BabyImprintingStatScaleMultiplier=${(config.babyImprintingStatScaleMultiplier ?? 1.0).toFixed(1)}`,
+              `BabyMatureSpeedMultiplier=${config.babyMatureSpeedMultiplier.toFixed(1)}`,
+              `bAllowUnclaimDinos=True`,
+              `bAllowCustomRecipes=True`,
               `bAllowFlyerSpeedLeveling=${config.bAllowFlyerSpeedLeveling ? 'True' : 'False'}`,
               `bAllowSpeedLeveling=${(config.bAllowSpeedLeveling ?? true) ? 'True' : 'False'}`,
-              `bUseCorpseLocator=${(config.bUseCorpseLocator ?? true) ? 'True' : 'False'}`,
+              `bAllowPlatformSaddleMultiFloors=False`,
               `bAllowUnlimitedRespecs=${(config.bAllowUnlimitedRespecs ?? true) ? 'True' : 'False'}`,
-              `bPassiveDefensesDamageRiderlessImprintedDino=${(config.bPassiveDefensesDamageRiderlessImprintedDino ?? true) ? 'True' : 'False'}`,
+              `BaseTemperatureMultiplier=1.0`,
+              `bAutoPvETimer=False`,
+              `bAutoPvEUseSystemTime=False`,
               `bAutoUnlockAllEngrams=${config.bAutoUnlockAllEngrams ? 'True' : 'False'}`,
+              `bDisableDinoBreeding=False`,
+              `bDisableDinoRiding=False`,
+              `bDisableDinoTaming=False`,
+              `bDisableFriendlyFire=${config.bDisableFriendlyFire ? 'True' : 'False'}`,
+              `bDisableLootCrates=False`,
+              `bDisableStructurePlacementCollision=${config.bDisableStructurePlacementCollision ? 'True' : 'False'}`,
+              `bFlyerPlatformAllowUnalignedDinoBasing=False`,
+              `bIgnoreStructuresPreventionVolumes=False`,
+              `bIncreasePvPRespawnInterval=True`,
+              `bOnlyAllowSpecifiedEngrams=False`,
+              `bPassiveDefensesDamageRiderlessDinos=${(config.bPassiveDefensesDamageRiderlessImprintedDino ?? true) ? 'True' : 'False'}`,
+              `bPvEAllowTribeWar=True`,
+              `bPvEAllowTribeWarCancel=False`,
+              `bPvEDisableFriendlyFire=${config.bPvEDisableFriendlyFire ? 'True' : 'False'}`,
+              `bShowCreativeMode=False`,
+              `bUseCorpseLocator=${(config.bUseCorpseLocator ?? true) ? 'True' : 'False'}`,
+              `bUseDinoLevelUpAnimations=True`,
+              `bUseSingleplayerSettings=False`,
+              `bUseTameLimitForStructuresOnly=False`,
+              `CraftingSkillBonusMultiplier=${(config.craftingSkillBonusMultiplier ?? 1.0).toFixed(1)}`,
+              `CraftXPMultiplier=${(config.craftXPMultiplier ?? 1.0).toFixed(1)}`,
+              `CropDecaySpeedMultiplier=${(config.cropDecaySpeedMultiplier ?? 1.0).toFixed(1)}`,
+              `CropGrowthSpeedMultiplier=${(config.cropGrowthSpeedMultiplier ?? 1.0).toFixed(1)}`,
+              `CustomRecipeEffectivenessMultiplier=${(config.customRecipeEffectivenessMultiplier ?? 1.0).toFixed(1)}`,
+              `CustomRecipeSkillMultiplier=${(config.customRecipeSkillMultiplier ?? 1.0).toFixed(1)}`,
+              `DestroyTamesOverLevelClamp=0`,
+              `DinoHarvestingDamageMultiplier=${(config.dinoHarvestingDamageMultiplier ?? 3.2).toFixed(1)}`,
+              `DinoTurretDamageMultiplier=${(config.dinoTurretDamageMultiplier ?? 1.0).toFixed(1)}`,
+              `EggHatchSpeedMultiplier=${config.eggHatchSpeedMultiplier.toFixed(1)}`,
+              `ExcludeItemIndices=`,
+              `FastDecayInterval=43200`,
+              `FishingLootQualityMultiplier=${(config.fishingLootQualityMultiplier ?? 1.0).toFixed(1)}`,
+              `FuelConsumptionIntervalMultiplier=${config.fuelConsumptionIntervalMultiplier.toFixed(1)}`,
+              `GenericXPMultiplier=${(config.genericXPMultiplier ?? 1.0).toFixed(1)}`,
+              `GlobalCorpseDecompositionTimeMultiplier=${(config.corpseDecompositionTimeMultiplier ?? 1.0).toFixed(1)}`,
+              `GlobalItemDecompositionTimeMultiplier=${(config.itemDecompositionTimeMultiplier ?? 1.0).toFixed(1)}`,
+              `GlobalPoweredBatteryDurabilityDecreasePerSecond=3.0`,
+              `GlobalSpoilingTimeMultiplier=${config.itemSpoilingTimeMultiplier.toFixed(1)}`,
+              `HairGrowthSpeedMultiplier=1.0`,
+              `HarvestXPMultiplier=${(config.harvestXPMultiplier ?? 1.0).toFixed(1)}`,
+              `IncreasePvPRespawnIntervalBaseAmount=60.0`,
+              `IncreasePvPRespawnIntervalCheckPeriod=300.0`,
+              `IncreasePvPRespawnIntervalMultiplier=2.0`,
+              `KillXPMultiplier=${(config.killXPMultiplier ?? 1.0).toFixed(1)}`,
+              `LayEggIntervalMultiplier=${(config.layEggIntervalMultiplier ?? 1.0).toFixed(1)}`,
+              `LimitNonPlayerDroppedItemsCount=0`,
+              `LimitNonPlayerDroppedItemsRange=0`,
+              `MatingIntervalMultiplier=${config.matingIntervalMultiplier.toFixed(1)}`,
+              `MatingSpeedMultiplier=${(config.matingSpeedMultiplier ?? 1.0).toFixed(1)}`,
+              `MaxAlliancesPerTribe=`,
+              `MaxFallSpeedMultiplier=1.0`,
+              `MaxNumberOfPlayersInTribe=${config.maxNumberOfPlayersInTribe || 0}`,
+              `MaxTribeLogs=400`,
+              `MaxTribesPerAlliance=`,
+              `OverrideMaxExperiencePointsDino=`,
+              `OverrideMaxExperiencePointsPlayer=`,
+              `PassiveTameIntervalMultiplier=1.0`,
+              `PlayerHarvestingDamageMultiplier=${(config.playerHarvestingDamageMultiplier ?? 1.0).toFixed(1)}`,
+              `PoopIntervalMultiplier=${(config.poopIntervalMultiplier ?? 1.0).toFixed(1)}`,
+              `PreventBreedingForClassNames=`,
+              `PreventDinoTameClassNames=`,
+              `PreventOfflinePvPConnectionInvincibleInterval=5.0`,
+              `PreventTransferForClassNames=`,
+              `PvPZoneStructureDamageMultiplier=${(config.pvpZoneStructureDamageMultiplier ?? 6.0).toFixed(1)}`,
+              `ResourceNoReplenishRadiusPlayers=1.0`,
+              `ResourceNoReplenishRadiusStructures=1.0`,
+              `SpecialXPMultiplier=${(config.specialXPMultiplier ?? 1.0).toFixed(1)}`,
+              `StructureDamageRepairCooldown=180`,
+              `SupplyCrateLootQualityMultiplier=${(config.supplyCrateLootQualityMultiplier ?? 1.0).toFixed(1)}`,
+              `TamedDinoCharacterFoodDrainMultiplier=${config.dinoCharacterFoodDrainMultiplier.toFixed(1)}`,
+              `TamedDinoTorporDrainMultiplier=${(config.tamedDinoTorporDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `TribeSlotReuseCooldown=0.0`,
+              `UseCorpseLifeSpanMultiplier=1.0`,
+              `WildDinoCharacterFoodDrainMultiplier=${(config.wildDinoCharacterFoodDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `WildDinoTorporDrainMultiplier=${(config.wildDinoTorporDrainMultiplier ?? 1.0).toFixed(1)}`,
+              `bHardLimitTurretsInRange=False`,
+              `bLimitTurretsInRange=True`,
+              `LimitTurretsNum=100`,
+              `LimitTurretsRange=10000.0`,
+              `AdjustableMutagenSpawnDelayMultiplier=1.0`,
+              `BaseHexagonRewardMultiplier=1.0`,
+              `bDisableHexagonStore=False`,
+              `bDisableDefaultMapItemSets=False`,
+              `bDisableGenesisMissions=False`,
+              `bDisableWorldBuffs=False`,
+              `bEnableWorldBuffScaling=False`,
+              `bGenesisUseStructuresPreventionVolumes=False`,
+              `bHexStoreAllowOnlyEngramTradeOption=False`,
+              `HexagonCostMultiplier=1.0`,
+              `WorldBuffScalingEfficacy=1.0`,
           ];
 
-          if (config.maxNumberOfPlayersInTribe && config.maxNumberOfPlayersInTribe > 0) {
-              gameIniLines.push(`MaxNumberOfPlayersInTribe=${config.maxNumberOfPlayersInTribe}`);
-          }
-
-          // Dynamic / Structured NPC Spawn Entries (ConfigAddNPCSpawnEntriesContainer)
+          // Dynamic / Structured NPC Spawn Entries
           if (config.npcSpawnEntries && config.npcSpawnEntries.length > 0) {
               gameIniLines.push(``, `; --- Custom NPC Spawn Entries ---`);
               config.npcSpawnEntries.forEach(entry => {
@@ -2854,7 +3421,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               });
           }
 
-          // Custom lines appended to Game.ini [/script/shootergame.shootergamemode]
+          // Custom lines appended to Game.ini
           if (config.customGameIni && config.customGameIni.trim()) {
               gameIniLines.push(``, `; --- Custom Game.ini Lines ---`);
               config.customGameIni.split(/\r?\n/).forEach(line => {
@@ -2864,18 +3431,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
           const gameFilePath = await join(configPath, 'Game.ini');
           const gameText = gameIniLines.join('\r\n');
-          console.log(`7. Writing Game.ini -> Path: "${gameFilePath}" (${gameIniLines.length} lines, ${gameText.length} chars)`);
+          console.log(`7. Writing Game.ini -> Path: "${gameFilePath}"`);
 
           if (typeof fs.writeTextFile === 'function') {
-              console.log('   Using fs.writeTextFile...');
               await fs.writeTextFile(gameFilePath, gameText);
           } else {
-              console.log('   Using fs.writeFile (encoded bytes)...');
               await fs.writeFile(gameFilePath, new TextEncoder().encode(gameText));
           }
-
-          const gameExistsAfter = await fs.exists(gameFilePath);
-          console.log(`   Game.ini write complete. Exists verification: ${gameExistsAfter}`);
 
           console.log(`✅ [Save Config] Both INI files saved successfully to "${configPath}"`);
 
