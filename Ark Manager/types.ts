@@ -37,6 +37,18 @@ export interface ServerConfig {
   dayTimeSpeedScale: number;
   nightTimeSpeedScale: number;
   autoSavePeriodMinutes: number;
+  dinoHarvestingDamageMultiplier: number;
+  playerHarvestingDamageMultiplier: number;
+  dinoCountMultiplier: number;
+  dinoDamageMultiplier: number;
+  dinoResistanceMultiplier: number;
+  playerDamageMultiplier: number;
+  playerResistanceMultiplier: number;
+  pveStructureDecayPeriodMultiplier: number;
+  resourcesRespawnPeriodMultiplier: number;
+  structureDamageMultiplier: number;
+  structureResistanceMultiplier: number;
+  newMaxStructuresInRange: number;
 
   // General Rates & XP Multipliers (Game.ini [/script/shootergame.shootergamemode])
   harvestHealthMultiplier: number;
@@ -45,6 +57,11 @@ export interface ServerConfig {
   craftXPMultiplier: number;
   genericXPMultiplier: number;
   specialXPMultiplier: number;
+  customRecipeEffectivenessMultiplier: number;
+  customRecipeSkillMultiplier: number;
+  craftingSkillBonusMultiplier: number;
+  supplyCrateLootQualityMultiplier: number;
+  fishingLootQualityMultiplier: number;
 
   // Breeding & Maturation (Game.ini [/script/shootergame.shootergamemode])
   matingIntervalMultiplier: number;
@@ -89,6 +106,10 @@ export interface ServerConfig {
   tamedDinoResistanceMultiplier: number;
   layEggIntervalMultiplier: number;
   poopIntervalMultiplier: number;
+  tamedDinoTorporDrainMultiplier: number;
+  wildDinoTorporDrainMultiplier: number;
+  wildDinoCharacterFoodDrainMultiplier: number;
+  dinoTurretDamageMultiplier: number;
 
   // World, Spoil & Decomposition (Game.ini)
   itemSpoilingTimeMultiplier: number; // GlobalSpoilingTimeMultiplier
@@ -110,6 +131,7 @@ export interface ServerConfig {
   bPvEDisableFriendlyFire: boolean;
   bPassiveDefensesDamageRiderlessImprintedDino: boolean;
   maxNumberOfPlayersInTribe: number;
+  pvpZoneStructureDamageMultiplier: number;
 
   // Tribute & Transfer Settings (GameUserSettings.ini [ServerSettings])
   bNoTributeDownloads: boolean;
@@ -141,6 +163,7 @@ export interface ServerConfig {
   wipeWildDinosOnRestart: boolean; // Wipe wild dinos (DestroyWildDinos/wipewilddinos) as soon as server comes up after automated restart
   saveWorldOnStopRestart: boolean; // Automatically execute SaveWorld via RCON before stopping or restarting server
   restartAnnouncementMinutes: number; // Lead time for restart announcements
+  autoCrashRecovery: boolean; // Automatically restart server if it crashes
 
   // Clustering
   bEnableClustering: boolean;
@@ -153,6 +176,7 @@ export interface ServerConfig {
   discordBotToken: string;
   discordBotEnabled: boolean;
   discordBotChannelId: string;
+  maxTamedDinos: number;
 }
 
 export interface ServerProfile {
