@@ -198,6 +198,9 @@ const mapIniToConfig = (
     const autoSaveMins = getIniFloat([gusServerSettings], 'AutoSavePeriodMinutes');
     if (autoSaveMins !== undefined) config.autoSavePeriodMinutes = autoSaveMins;
 
+    const maxTamedDinos = getIniFloat([gusServerSettings], 'MaxTamedDinos');
+    if (maxTamedDinos !== undefined) config.maxTamedDinos = maxTamedDinos;
+
     // XP Breakdown (Game.ini)
     const harvestHealth = getIniFloat(bothFiles, 'HarvestHealthMultiplier');
     if (harvestHealth !== undefined) config.harvestHealthMultiplier = harvestHealth;
