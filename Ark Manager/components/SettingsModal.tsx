@@ -167,6 +167,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 <div className="space-y-4 text-gray-300">
                     <div>
                         <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
+                            <p className="font-semibold text-gray-200">v2.1.1 (Immediate Mobile Telemetry Sync Fix)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Critical fix for real-time server status synchronization with the mobile companion app.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Instant Status Broadcasting:</strong> Refactored the telemetry engine to broadcast server state changes (Start, Stop, Restart, Update) immediately to Firestore. This resolves the delay where the mobile app would show a server as "Online" for up to 60 seconds after a shutdown.</li>
+                            <li><strong>Lifecycle Event Hooks:</strong> Integrated telemetry sync directly into the server lifecycle handlers (onStop, onStart, onUpdate) and background process listeners for 1:1 parity between desktop and mobile state.</li>
+                            <li><strong>Dependency Optimization:</strong> Fixed missing React hook dependencies in the cloud sync engine to ensure reliable data transmission under high-frequency events.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <div className="flex items-center space-x-2">
                             <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/40 text-xs font-bold uppercase tracking-wider">Minor Release</span>
                             <p className="font-semibold text-gray-200">v2.1.0 (Strict INI Templates & ARK v97.5 Compatibility)</p>
                         </div>

@@ -345,6 +345,49 @@ const Dashboard: React.FC<DashboardProps> = ({
       });
   }, []);
 
+  const performTelemetrySync = useCallback((profile: ServerProfile, statusOverride?: string) => {
+    if (!auth.currentUser) return;
+    
+    let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error';
+    if (statusOverride) {
+        mappedStatus = statusOverride as any;
+    } else {
+        switch (profile.status) {
+            case ServerStatus.Running: mappedStatus = 'Running'; break;
+            case ServerStatus.Starting: mappedStatus = 'Starting'; break;
+            case ServerStatus.Stopping: mappedStatus = 'Stopping'; break;
+            case ServerStatus.Restarting: mappedStatus = 'Restarting'; break;
+            case ServerStatus.Updating: mappedStatus = 'Updating'; break;
+            case ServerStatus.Error: mappedStatus = 'Error'; break;
+            default: mappedStatus = 'Stopped'; break;
+        }
+    }
+
+    const nextRestart = calculateNextScheduledRestart(
+        profile.config?.scheduledRestartEnabled,
+        profile.config?.scheduledRestartTime,
+        profile.id === activeProfileIdRef.current ? activeRestartEndTime : null
+    );
+
+    syncServerTelemetry(auth.currentUser.uid, profile.id, {
+        serverName: profile.profileName || 'ARK Server',
+        status: mappedStatus,
+        playerCount: profile.playerCount ?? 0,
+        maxPlayers: profile.config?.maxPlayers ?? 70,
+        map: profile.config?.map || 'TheIsland_WP',
+        ip: profile.config?.rconIp || '',
+        nextScheduledRestart: nextRestart,
+        scheduledRestartEnabled: profile.config?.scheduledRestartEnabled ?? false,
+        scheduledRestartTime: profile.config?.scheduledRestartTime || '04:00',
+        lastBackupTime: profile.lastBackupTime || '',
+        currentBuildId: profile.currentBuildId || '',
+        latestBuildId: profile.latestBuildId || '',
+        updateAvailable: !!(profile.currentBuildId && profile.latestBuildId && profile.currentBuildId !== profile.latestBuildId),
+        onlinePlayers: (playerListsByProfileRef.current[profile.id] || []).map(p => ({ name: p.name, steamId: p.steamId })),
+        recentChat: recentChatLogsRef.current[profile.id] || [],
+    });
+  }, [activeRestartEndTime]);
+
   const onUpdate = useCallback(async (autoRestartAfter = false, targetProfileId?: string, forceCleanManifest = true) => {
     const profId = (typeof targetProfileId === 'string' && targetProfileId.trim())
         ? targetProfileId.trim()
@@ -359,6 +402,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     setIsUpdateFinished(false);
     setIsUpdateModalOpen(true);
     updateProfile(profileToUpdate.id, { status: ServerStatus.Updating });
+    performTelemetrySync(profileToUpdate, 'Updating');
     setUpdateLog([
       forceCleanManifest 
         ? 'Initializing server file update (appmanifest_2430930.acf will be auto-cleaned to ensure latest build check)...'
@@ -380,7 +424,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         notificationService.sendNotification('Update Failed', `Failed to update server files for ${profileToUpdate.profileName}.`);
         setIsUpdateFinished(true);
     }
-  }, [updateProfile]);
+  }, [updateProfile, performTelemetrySync]);
 
   const handleCancelUpdate = useCallback(async () => {
     try {
@@ -400,6 +444,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     setServerLog([]); // Clear server log on start
     setPlayerListsByProfile(prev => ({ ...prev, [profileId]: [] })); // Clear player list on start
     updateProfile(profileId, { status: ServerStatus.Starting, playerCount: 0 });
+    performTelemetrySync(profileToStart, 'Starting');
     notificationService.sendNotification('Server Starting', `The server "${profileToStart.profileName}" is starting up.`);
 
     if (startupTimerRef.current) clearTimeout(startupTimerRef.current);
@@ -581,7 +626,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         // Automatically switch to console so the manager log is right in front of the user
         setActiveTab('console');
     }
-}, [updateProfile, onShowToast]);
+}, [updateProfile, onShowToast, performTelemetrySync]);
 
   const onStart = useCallback(async (targetProfileId?: string) => {
     const currentActiveId = (typeof targetProfileId === 'string' && targetProfileId.trim()) 
@@ -690,6 +735,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         // 1. Immediately indicate Stopping state so UI disables buttons and reflects state
         updateProfile(profileId, { status: ServerStatus.Stopping });
+        performTelemetrySync(profileToStop, 'Stopping');
 
         // 2. Save world before stopping if configured and server was running
         if (profileToStop.status === ServerStatus.Running && (profileToStop.config.saveWorldOnStopRestart ?? true)) {
@@ -746,7 +792,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             onShowToast(`Failed to stop server: ${error}`, 'error');
             updateProfile(profileId, { status: ServerStatus.Error });
         }
-    }, [activeProfile, updateProfile, onShowToast]);
+    }, [activeProfile, updateProfile, onShowToast, performTelemetrySync]);
 
     const onRestart = useCallback(async (isScheduled = false, targetProfileId?: string) => {
         const scheduled = typeof isScheduled === 'boolean' ? isScheduled : false;
@@ -841,6 +887,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
 
         updateProfile(id, { status: ServerStatus.Restarting });
+        performTelemetrySync(profileToRestart, 'Restarting');
         try {
             await invoke('stop_ark_server', { profileId: id, pid: profileToRestart.pid });
         } catch(error) {
@@ -849,7 +896,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             updateProfile(id, { status: ServerStatus.Error });
             scheduledRestartWipeProfilesRef.current.delete(id);
         }
-    }, [updateProfile, onUpdate, onShowToast]);
+    }, [updateProfile, onUpdate, onShowToast, performTelemetrySync]);
 
     const sendDiscordStatusResponse = useCallback(async (targetProf: ServerProfile) => {
         const uptimeSec = targetProf.uptime || 0;
@@ -943,7 +990,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     setManagerLog(prev => [...prev, `[Mobile Bridge] ✅ SaveWorld executed successfully on "${targetProfile.profileName}".`]);
                     break;
 
-                case 'BROADCAST_MESSAGE':
+                case 'BROADCAST_MESSAGE': {
                     if (targetProfile.status !== ServerStatus.Running) {
                         throw new Error(`Cannot broadcast: Server "${targetProfile.profileName}" is not running.`);
                     }
@@ -955,6 +1002,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     await updateCommandStatus(userId, commandId, 'completed', `Broadcast sent: "${msg}"`);
                     setManagerLog(prev => [...prev, `[Mobile Bridge] 📢 Broadcast sent: "${msg}"`]);
                     break;
+                }
 
                 case 'KICK_PLAYER':
                     if (targetProfile.status !== ServerStatus.Running) {
@@ -1144,7 +1192,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             setManagerLog(prev => [...prev, `[Mobile Bridge] ❌ Command execution failed: ${errMsg}`]);
             await updateCommandStatus(userId, commandId, 'failed', errMsg);
         }
-    }, [executeServerStart, onStop, onRestart, onUpdate]);
+    }, [executeServerStart, onStop, onRestart, onUpdate, updateProfile, activeRestartEndTime]);
 
     // Live Command Listener (Desktop Host Subscriber)
     useEffect(() => {
@@ -1164,7 +1212,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             const user = auth.currentUser;
             if (!user) return;
             profilesRef.current.forEach((prof) => {
-                let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error' = 'Stopped';
+                let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error';
                 if (prof.status === ServerStatus.Running) mappedStatus = 'Running';
                 else if (prof.status === ServerStatus.Starting) mappedStatus = 'Starting';
                 else if (prof.status === ServerStatus.Stopping) mappedStatus = 'Stopping';
@@ -1211,7 +1259,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             activeProfile.config?.scheduledRestartTime,
             activeRestartEndTime
         );
-        let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error' = 'Stopped';
+        let mappedStatus: 'Running' | 'Stopped' | 'Starting' | 'Stopping' | 'Restarting' | 'Updating' | 'Error';
         if (activeProfile.status === ServerStatus.Running) mappedStatus = 'Running';
         else if (activeProfile.status === ServerStatus.Starting) mappedStatus = 'Starting';
         else if (activeProfile.status === ServerStatus.Stopping) mappedStatus = 'Stopping';
@@ -1237,7 +1285,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             onlinePlayers: (playerListsByProfileRef.current[activeProfile.id] || []).map(p => ({ name: p.name, steamId: p.steamId })),
             recentChat: recentChatLogsRef.current[activeProfile.id] || [],
         });
-    }, [activeRestartEndTime]);
+    }, [activeRestartEndTime, activeProfile]);
 
     const syncDiscordBots = useCallback(async (profilesToSync: ServerProfile[]) => {
         const enabledProfiles = profilesToSync.filter(p => 
@@ -2328,6 +2376,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         startupTimerRef.current = null;
                     }
                     updateProfile(profile_id, { status: ServerStatus.Running });
+                    if (runningProfile) performTelemetrySync({ ...runningProfile, status: ServerStatus.Running });
 
                     // Only run wipewilddinos if this startup was triggered by an automated scheduled restart
                     if (scheduledRestartWipeProfilesRef.current.has(profile_id)) {
@@ -2382,6 +2431,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             sendDiscordStatusResponse({ ...stoppedProfile, status: ServerStatus.Stopped, playerCount: 0, uptime: 0, memoryUsage: 0 });
                         }
                         updateProfile(profile_id, { status: ServerStatus.Stopped, playerCount: 0 });
+                        if (latestProfile) performTelemetrySync({ ...latestProfile, status: ServerStatus.Stopped });
                     }
                 }),
                 listen<string>('map-update-log', (event) => setMapUpdateLog((prev: string[]) => [...prev, event.payload as string])),
@@ -2524,7 +2574,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             clearTimeout(startupTimerRef.current);
         }
     };
-}, [onStart, onStop, onRestart, onUpdate, updateProfile, setNotifications, executeServerStart, sendDiscordStatusResponse, handleWipeWildDinosOnStartup]);
+}, [onStart, onStop, onRestart, onUpdate, updateProfile, setNotifications, executeServerStart, sendDiscordStatusResponse, handleWipeWildDinosOnStartup, performTelemetrySync]);
   
   useEffect(() => {
     setActiveTab('config');
