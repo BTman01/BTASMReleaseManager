@@ -91,7 +91,13 @@ fn log_to_frontend(window: &Window, event: &str, message: &str) {
     println!("[{}] {}", event, message);
 }
 
-fn get_backup_dir(install_path: &str) -> PathBuf {
+fn get_backup_dir(install_path: &str, custom_backup_path: Option<&str>) -> PathBuf {
+    if let Some(custom_path) = custom_backup_path {
+        let trimmed = custom_path.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
     PathBuf::from(install_path).join("ManagerBackups")
 }
 
@@ -109,7 +115,6 @@ fn get_global_steamcmd_exe() -> PathBuf {
 
 fn get_available_space_gb(path_str: &str) -> u64 {
     let disks = Disks::new_with_refreshed_list();
-    let path = Path::new(path_str);
     
     // Find the disk that contains this path
     let mut best_match: Option<&sysinfo::Disk> = None;
@@ -1186,9 +1191,9 @@ async fn update_mods(window: Window, install_path: String, mod_ids: String) -> R
 }
 
 #[tauri::command]
-async fn list_backups(install_path: String) -> Result<Vec<BackupInfo>, String> {
-    // Backups are stored in profile root (install_path/ManagerBackups)
-    let backup_dir = get_backup_dir(&install_path);
+async fn list_backups(install_path: String, backup_path: Option<String>) -> Result<Vec<BackupInfo>, String> {
+    // Backups are stored in custom backup_path if set, otherwise profile root (install_path/ManagerBackups)
+    let backup_dir = get_backup_dir(&install_path, backup_path.as_deref());
     if !backup_dir.exists() {
         return Ok(vec![]);
     }
@@ -1199,8 +1204,11 @@ async fn list_backups(install_path: String) -> Result<Vec<BackupInfo>, String> {
         let path = entry.path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("zip") {
             let metadata = entry.metadata().map_err(|e| e.to_string())?;
-            let created_time: chrono::DateTime<Local> =
-                metadata.created().map_err(|e| e.to_string())?.into();
+            let system_time = metadata
+                .created()
+                .or_else(|_| metadata.modified())
+                .map_err(|e| e.to_string())?;
+            let created_time: chrono::DateTime<Local> = system_time.into();
 
             backups.push(BackupInfo {
                 filename: path.file_name().unwrap().to_string_lossy().to_string(),
@@ -1214,8 +1222,8 @@ async fn list_backups(install_path: String) -> Result<Vec<BackupInfo>, String> {
 }
 
 #[tauri::command]
-async fn create_backup(install_path: String) -> Result<(), String> {
-    let backup_dir = get_backup_dir(&install_path);
+async fn create_backup(install_path: String, backup_path: Option<String>) -> Result<(), String> {
+    let backup_dir = get_backup_dir(&install_path, backup_path.as_deref());
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
     // Saved dir is in /server/ShooterGame/Saved
@@ -1230,9 +1238,9 @@ async fn create_backup(install_path: String) -> Result<(), String> {
 
     let timestamp = Local::now().format("%Y%m%d-%H%M%S");
     let backup_filename = format!("backup-{}.zip", timestamp);
-    let backup_path = backup_dir.join(backup_filename);
+    let backup_file_path = backup_dir.join(backup_filename);
 
-    let file = fs::File::create(&backup_path).map_err(|e| e.to_string())?;
+    let file = fs::File::create(&backup_file_path).map_err(|e| e.to_string())?;
     let mut zip = ZipWriter::new(file);
 
     let options: FileOptions<()> =
@@ -1261,9 +1269,9 @@ async fn create_backup(install_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn restore_backup(install_path: String, backup_filename: String) -> Result<(), String> {
-    let backup_path = get_backup_dir(&install_path).join(&backup_filename);
-    if !backup_path.exists() {
+async fn restore_backup(install_path: String, backup_filename: String, backup_path: Option<String>) -> Result<(), String> {
+    let backup_file_path = get_backup_dir(&install_path, backup_path.as_deref()).join(&backup_filename);
+    if !backup_file_path.exists() {
         return Err("Backup file not found.".to_string());
     }
 
@@ -1278,7 +1286,7 @@ async fn restore_backup(install_path: String, backup_filename: String) -> Result
     }
     fs::create_dir_all(&saved_dir).map_err(|e| e.to_string())?;
 
-    let file = fs::File::open(&backup_path).map_err(|e| e.to_string())?;
+    let file = fs::File::open(&backup_file_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
 
     for i in 0..archive.len() {
@@ -1304,12 +1312,12 @@ async fn restore_backup(install_path: String, backup_filename: String) -> Result
 }
 
 #[tauri::command]
-async fn delete_backup(install_path: String, backup_filename: String) -> Result<(), String> {
-    let backup_path = get_backup_dir(&install_path).join(&backup_filename);
-    if !backup_path.exists() {
+async fn delete_backup(install_path: String, backup_filename: String, backup_path: Option<String>) -> Result<(), String> {
+    let backup_file_path = get_backup_dir(&install_path, backup_path.as_deref()).join(&backup_filename);
+    if !backup_file_path.exists() {
         return Err("Backup file not found.".to_string());
     }
-    fs::remove_file(backup_path).map_err(|e| e.to_string())?;
+    fs::remove_file(backup_file_path).map_err(|e| e.to_string())?;
     Ok(())
 }
 
