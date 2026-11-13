@@ -16,6 +16,7 @@ interface ServerControlsProps {
   onCancelTimedRestart: () => void;
   activeRestartEndTime: number | null;
   isActionInProgress: boolean;
+  onToggleAutoBackupOnStopRestart?: (enabled: boolean) => void;
 }
 
 const StatusIndicator: React.FC<{ status: ServerStatus }> = ({ status }) => {
@@ -67,7 +68,8 @@ const ServerControls: React.FC<ServerControlsProps> = ({
     profile, onStart, onStop, onRestart, onUpdate, onInstall, 
     onOpenTimedShutdown, onCancelTimedShutdown, activeShutdownEndTime,
     onOpenTimedRestart, onCancelTimedRestart, activeRestartEndTime,
-    isActionInProgress 
+    isActionInProgress,
+    onToggleAutoBackupOnStopRestart
 }) => {
   const status = profile?.status || ServerStatus.NotInstalled;
   const [liveUptime, setLiveUptime] = useState(profile?.uptime || 0);
@@ -127,7 +129,8 @@ const ServerControls: React.FC<ServerControlsProps> = ({
   const isMapMissing = profile?.config.map === 'SELECT_MAP';
 
   return (
-    <div className="p-6 bg-gray-800/50 backdrop-blur-md rounded-lg shadow-lg border border-gray-700 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
+    <div className="p-6 bg-gray-800/50 backdrop-blur-md rounded-lg shadow-lg border border-gray-700">
+      <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-8">
         <div>
           <h2 className="text-lg font-bold text-cyan-400 mb-2">Server Status</h2>
@@ -264,6 +267,21 @@ const ServerControls: React.FC<ServerControlsProps> = ({
           </>
         )}
       </div>
+      </div>
+      {status !== ServerStatus.NotInstalled && onToggleAutoBackupOnStopRestart && (
+        <div className="pt-3 mt-4 border-t border-gray-700/60 flex items-center justify-center sm:justify-end">
+          <label className="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer select-none hover:text-white transition-colors">
+            <input
+              type="checkbox"
+              checked={profile?.config.autoBackupOnStopRestart ?? false}
+              onChange={(e) => onToggleAutoBackupOnStopRestart(e.target.checked)}
+              disabled={isActionInProgress}
+              className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-700 text-cyan-600 focus:ring-cyan-500 cursor-pointer disabled:cursor-not-allowed"
+            />
+            <span>Auto-backup on Stop / Restart</span>
+          </label>
+        </div>
+      )}
     </div>
   );
 };

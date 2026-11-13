@@ -203,6 +203,12 @@ const getDefaultServerConfig = (profileCount: number, defaultRconIp: string = '1
     updateOnRestart: true,
     wipeWildDinosOnRestart: false,
     saveWorldOnStopRestart: true,
+    autoBackupEnabled: false,
+    autoBackupIntervalMinutes: 60,
+    autoBackupMaxKeep: 10,
+    autoBackupOnlyWhenRunning: true,
+    autoBackupOnStopRestart: false,
+    backupPath: '',
     restartAnnouncementMinutes: 10,
     autoCrashRecovery: true,
 
@@ -309,6 +315,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const lastRestartBroadcastMinuteRef = useRef<number | null>(null);
   const scheduledRestartWipeProfilesRef = useRef<Set<string>>(new Set());
   const lastSaveWorldTimeRef = useRef<Record<string, number>>({});
+  const pendingBackupOverrideRef = useRef<Record<string, boolean>>({});
+  const isBackupRunningRef = useRef<Record<string, boolean>>({});
+  const lastAutoBackupCheckRef = useRef<Record<string, number>>({});
   
   const lastAnalyticsSaveTimeRef = useRef<number>(0);
   const shouldAutoRestartAfterUpdateRef = useRef<boolean>(false);
@@ -788,6 +797,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             });
             setManagerLog(prev => [...prev, `[Manager] 🛑 Server stop command executed for "${profileToStop.profileName}".`]);
         } catch(error) {
+            delete pendingBackupOverrideRef.current[profileId];
             console.error("Failed to stop server:", error);
             onShowToast(`Failed to stop server: ${error}`, 'error');
             updateProfile(profileId, { status: ServerStatus.Error });
@@ -891,6 +901,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         try {
             await invoke('stop_ark_server', { profileId: id, pid: profileToRestart.pid });
         } catch(error) {
+            delete pendingBackupOverrideRef.current[id];
             console.error("Failed to stop server for restart:", error);
             onShowToast(`Failed to stop server for restart: ${error}`, 'error');
             updateProfile(id, { status: ServerStatus.Error });
@@ -1024,6 +1035,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         throw new Error(`Cannot backup: Profile "${targetProfile.profileName}" has no install path configured.`);
                     }
                     const rootPath = directoryService.getRootInstallPath(targetProfile.path);
+                    const customBackupPath = targetProfile.config?.backupPath?.trim() || undefined;
                     setManagerLog(prev => [...prev, `[Mobile Bridge] 💾 Starting backup for "${targetProfile.profileName}"...`]);
 
                     // If server is currently running and RCON is available, save world first so backup captures latest player progress
@@ -1039,14 +1051,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                         }
                     }
 
-                    await invoke('create_backup', { installPath: rootPath, serverPath: rootPath });
+                    await invoke('create_backup', { installPath: rootPath, serverPath: rootPath, backupPath: customBackupPath });
                     const backupTimestamp = new Date().toISOString();
                     updateProfile(targetProfile.id, { lastBackupTime: backupTimestamp });
 
                     // If backing up the active profile, refresh the desktop backup manager table
                     if (targetProfile.id === activeProfileIdRef.current) {
                         try {
-                            const result: BackupInfo[] = await invoke('list_backups', { installPath: rootPath, serverPath: rootPath });
+                            const result: BackupInfo[] = await invoke('list_backups', { installPath: rootPath, serverPath: rootPath, backupPath: customBackupPath });
                             setBackups(result);
                         } catch (listErr) {
                             console.warn('[Mobile Bridge] Failed to refresh local backup list:', listErr);
@@ -1509,8 +1521,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   }, []);
 
-  const handleInitiateTimedShutdown = (minutes: number, reason?: string, shouldSaveWorld?: boolean) => {
+  const handleInitiateTimedShutdown = (minutes: number, reason?: string, shouldSaveWorld?: boolean, shouldBackup?: boolean) => {
     if (!activeProfile || activeProfile.status !== ServerStatus.Running) return;
+    const targetId = activeProfile.id;
+    const defaultBackupChoice = activeProfile.config.autoBackupOnStopRestart ?? false;
+    const defaultSaveChoice = activeProfile.config.saveWorldOnStopRestart ?? true;
     
     const durationMs = minutes * 60 * 1000;
     const endTime = Date.now() + durationMs;
@@ -1535,14 +1550,13 @@ const Dashboard: React.FC<DashboardProps> = ({
             setActiveShutdownEndTime(null);
             handleSendCommand(`ServerChat Server shutting down NOW.${reasonSuffix}`);
             
-            const doSave = shouldSaveWorld ?? (activeProfile?.config.saveWorldOnStopRestart ?? true);
+            const doSave = shouldSaveWorld ?? defaultSaveChoice;
             if (doSave) {
                 handleSendCommand("SaveWorld");
-                if (activeProfile?.id) {
-                    lastSaveWorldTimeRef.current[activeProfile.id] = Date.now();
-                }
+                lastSaveWorldTimeRef.current[targetId] = Date.now();
             }
-            setTimeout(() => onStop(), 2000);
+            pendingBackupOverrideRef.current[targetId] = shouldBackup ?? defaultBackupChoice;
+            setTimeout(() => onStop(targetId), 2000);
             return;
         }
 
@@ -1564,12 +1578,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         clearInterval(shutdownTimerIntervalRef.current);
         shutdownTimerIntervalRef.current = null;
     }
+    if (activeProfileIdRef.current) {
+        delete pendingBackupOverrideRef.current[activeProfileIdRef.current];
+    }
     setActiveShutdownEndTime(null);
     handleSendCommand("ServerChat Shutdown cancelled.");
   };
 
-  const handleInitiateTimedRestart = (minutes: number, reason?: string, shouldSaveWorld?: boolean) => {
+  const handleInitiateTimedRestart = (minutes: number, reason?: string, shouldSaveWorld?: boolean, shouldBackup?: boolean) => {
     if (!activeProfile || activeProfile.status !== ServerStatus.Running) return;
+    const targetId = activeProfile.id;
+    const defaultBackupChoice = activeProfile.config.autoBackupOnStopRestart ?? false;
+    const defaultSaveChoice = activeProfile.config.saveWorldOnStopRestart ?? true;
     
     const durationMs = minutes * 60 * 1000;
     const endTime = Date.now() + durationMs;
@@ -1594,14 +1614,13 @@ const Dashboard: React.FC<DashboardProps> = ({
             setActiveRestartEndTime(null);
             handleSendCommand(`ServerChat Server restarting NOW.${reasonSuffix}`);
             
-            const doSave = shouldSaveWorld ?? (activeProfile?.config.saveWorldOnStopRestart ?? true);
+            const doSave = shouldSaveWorld ?? defaultSaveChoice;
             if (doSave) {
                 handleSendCommand("SaveWorld");
-                if (activeProfile?.id) {
-                    lastSaveWorldTimeRef.current[activeProfile.id] = Date.now();
-                }
+                lastSaveWorldTimeRef.current[targetId] = Date.now();
             }
-            setTimeout(() => onRestart(false), 2000);
+            pendingBackupOverrideRef.current[targetId] = shouldBackup ?? defaultBackupChoice;
+            setTimeout(() => onRestart(false, targetId), 2000);
             return;
         }
 
@@ -1622,6 +1641,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (timedRestartIntervalRef.current) {
         clearInterval(timedRestartIntervalRef.current);
         timedRestartIntervalRef.current = null;
+    }
+    if (activeProfileIdRef.current) {
+        delete pendingBackupOverrideRef.current[activeProfileIdRef.current];
     }
     setActiveRestartEndTime(null);
     handleSendCommand("ServerChat Restart cancelled.");
@@ -1810,8 +1832,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (!activeProfile?.path) return;
     setIsLoadingBackups(true);
     const rootPath = directoryService.getRootInstallPath(activeProfile.path);
+    const customBackupPath = activeProfile.config?.backupPath?.trim() || undefined;
     try {
-        const result: BackupInfo[] = await invoke('list_backups', { installPath: rootPath, serverPath: rootPath });
+        const result: BackupInfo[] = await invoke('list_backups', { installPath: rootPath, serverPath: rootPath, backupPath: customBackupPath });
         setBackups(result);
     } catch (error) {
         console.error('Failed to list backups:', error);
@@ -1819,14 +1842,153 @@ const Dashboard: React.FC<DashboardProps> = ({
     } finally {
         setIsLoadingBackups(false);
     }
-  }, [activeProfile?.path, onShowToast]);
+  }, [activeProfile?.path, activeProfile?.config?.backupPath, onShowToast]);
+
+  const performProfileBackup = useCallback(async (targetProfile: ServerProfile, reasonLabel = 'scheduled') => {
+    if (!targetProfile.path) return false;
+    if (isBackupRunningRef.current[targetProfile.id]) {
+      console.log(`[Auto-Backup] Backup already running for "${targetProfile.profileName}", skipping duplicate trigger.`);
+      return false;
+    }
+
+    isBackupRunningRef.current[targetProfile.id] = true;
+    if (targetProfile.id === activeProfileIdRef.current) {
+      setIsCreatingBackup(true);
+    }
+
+    const rootPath = directoryService.getRootInstallPath(targetProfile.path);
+    const customBackupPath = targetProfile.config?.backupPath?.trim() || undefined;
+    try {
+      setManagerLog(prev => [...prev, `[Auto-Backup] 💾 Creating ${reasonLabel} backup for "${targetProfile.profileName}"...`]);
+
+      // If server is currently running and RCON is enabled, save world first
+      if (targetProfile.status === ServerStatus.Running && targetProfile.config?.bEnableRcon) {
+        const timeSinceLastSave = Date.now() - (lastSaveWorldTimeRef.current[targetProfile.id] || 0);
+        if (timeSinceLastSave > 5000) {
+          try {
+            const savePromise = invoke('send_rcon_command', {
+              profileId: targetProfile.id,
+              command: 'SaveWorld',
+            });
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('SaveWorld timeout (8s)')), 8000)
+            );
+            await Promise.race([savePromise, timeoutPromise]);
+            lastSaveWorldTimeRef.current[targetProfile.id] = Date.now();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (saveErr) {
+            console.warn('[Auto-Backup] Pre-backup SaveWorld notice:', saveErr);
+          }
+        }
+      }
+
+      await invoke('create_backup', { installPath: rootPath, serverPath: rootPath, backupPath: customBackupPath });
+      const backupTimestamp = new Date().toISOString();
+      updateProfile(targetProfile.id, { lastBackupTime: backupTimestamp });
+
+      // Retention pruning if configured
+      const maxKeep = targetProfile.config?.autoBackupMaxKeep ?? 0;
+      if (maxKeep > 0) {
+        try {
+          const allBackups: BackupInfo[] = await invoke('list_backups', { installPath: rootPath, serverPath: rootPath, backupPath: customBackupPath });
+          if (allBackups.length > maxKeep) {
+            const toDelete = allBackups.slice(maxKeep);
+            for (const oldBackup of toDelete) {
+              try {
+                await invoke('delete_backup', {
+                  installPath: rootPath,
+                  serverPath: rootPath,
+                  backupFilename: oldBackup.filename,
+                  backupPath: customBackupPath,
+                });
+                setManagerLog(prev => [...prev, `[Auto-Backup] 🧹 Pruned old backup "${oldBackup.filename}" (retention limit: ${maxKeep}).`]);
+              } catch (delErr) {
+                console.warn(`[Auto-Backup] Failed to prune old backup ${oldBackup.filename}:`, delErr);
+              }
+            }
+          }
+        } catch (listErr) {
+          console.warn('[Auto-Backup] Failed to check backup retention:', listErr);
+        }
+      }
+
+      if (targetProfile.id === activeProfileIdRef.current) {
+        await handleListBackups();
+      }
+
+      performTelemetrySync({ ...targetProfile, lastBackupTime: backupTimestamp });
+
+      const formattedReason = reasonLabel.charAt(0).toUpperCase() + reasonLabel.slice(1);
+      setManagerLog(prev => [...prev, `[Auto-Backup] ✅ ${formattedReason} backup completed for "${targetProfile.profileName}".`]);
+      notificationService.sendNotification('Auto-Backup Complete', `Created ${reasonLabel} backup for "${targetProfile.profileName}".`);
+      if (targetProfile.id === activeProfileIdRef.current) {
+        onShowToast(`Auto-backup (${reasonLabel}) completed!`, 'success');
+      }
+      return true;
+    } catch (err) {
+      console.error(`[Auto-Backup] Failed ${reasonLabel} backup:`, err);
+      setManagerLog(prev => [...prev, `[Auto-Backup] ❌ ${reasonLabel} backup failed: ${err}`]);
+      notificationService.sendNotification('Auto-Backup Failed', `Failed to create ${reasonLabel} backup for "${targetProfile.profileName}": ${err}`);
+      if (targetProfile.id === activeProfileIdRef.current) {
+        onShowToast(`Auto-backup failed: ${err}`, 'error');
+      }
+      return false;
+    } finally {
+      isBackupRunningRef.current[targetProfile.id] = false;
+      if (targetProfile.id === activeProfileIdRef.current) {
+        setIsCreatingBackup(false);
+      }
+    }
+  }, [updateProfile, handleListBackups, performTelemetrySync, onShowToast]);
+
+  // Scheduled periodic auto-backup monitor across all profiles
+  useEffect(() => {
+    if (activeProfile?.id && activeProfile.config?.autoBackupEnabled) {
+      lastAutoBackupCheckRef.current[activeProfile.id] = Date.now();
+    } else if (activeProfile?.id) {
+      delete lastAutoBackupCheckRef.current[activeProfile.id];
+    }
+  }, [activeProfile?.id, activeProfile?.config?.autoBackupEnabled, activeProfile?.config?.autoBackupIntervalMinutes]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      profilesRef.current.forEach((prof) => {
+        if (!prof.path || !prof.config?.autoBackupEnabled) {
+          delete lastAutoBackupCheckRef.current[prof.id];
+          return;
+        }
+
+        const onlyWhenRunning = prof.config.autoBackupOnlyWhenRunning ?? true;
+        if (onlyWhenRunning && prof.status !== ServerStatus.Running) {
+          return;
+        }
+
+        const intervalMinutes = Math.max(5, prof.config.autoBackupIntervalMinutes ?? 60);
+        const intervalMs = intervalMinutes * 60 * 1000;
+
+        if (!lastAutoBackupCheckRef.current[prof.id]) {
+          lastAutoBackupCheckRef.current[prof.id] = now;
+          return;
+        }
+
+        if (now - lastAutoBackupCheckRef.current[prof.id] >= intervalMs) {
+          lastAutoBackupCheckRef.current[prof.id] = now;
+          performProfileBackup(prof, 'scheduled');
+        }
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [performProfileBackup]);
 
   const handleCreateBackup = async () => {
     if (!activeProfile?.path) return;
     setIsCreatingBackup(true);
     const rootPath = directoryService.getRootInstallPath(activeProfile.path);
+    const customBackupPath = activeProfile.config?.backupPath?.trim() || undefined;
     try {
-        await invoke('create_backup', { installPath: rootPath, serverPath: rootPath });
+        await invoke('create_backup', { installPath: rootPath, serverPath: rootPath, backupPath: customBackupPath });
         const backupTimestamp = new Date().toISOString();
         updateProfile(activeProfile.id, { lastBackupTime: backupTimestamp });
         await handleListBackups();
@@ -1873,11 +2035,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     );
     if (confirmed) {
         const rootPath = directoryService.getRootInstallPath(activeProfile.path);
+        const customBackupPath = activeProfile.config?.backupPath?.trim() || undefined;
         try {
             await invoke('restore_backup', {
                 installPath: rootPath,
                 serverPath: rootPath,
                 backupFilename: filename,
+                backupPath: customBackupPath,
             });
             onShowToast('Backup restored successfully!', 'success');
             notificationService.sendNotification('Backup Restored', `Restored backup "${filename}" for "${activeProfile.profileName}".`);
@@ -1895,11 +2059,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
     if (confirmed) {
         const rootPath = directoryService.getRootInstallPath(activeProfile.path);
+        const customBackupPath = activeProfile.config?.backupPath?.trim() || undefined;
         try {
             await invoke('delete_backup', {
                 installPath: rootPath,
                 serverPath: rootPath,
                 backupFilename: filename,
+                backupPath: customBackupPath,
             });
             await handleListBackups();
             onShowToast('Backup deleted successfully.', 'success');
@@ -2387,7 +2553,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         }
                     }
                 }),
-                listen<{profile_id: string, exit_code?: number}>('server-stopped', (event) => {
+                listen<{profile_id: string, exit_code?: number}>('server-stopped', async (event) => {
                     const { profile_id } = event.payload;
                     const stoppedProfile = profilesRef.current.find(p => p.id === profile_id);
 
@@ -2399,7 +2565,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                     setPlayerListsByProfile(prev => ({ ...prev, [profile_id]: [] }));
 
                     const latestProfile = profilesRef.current.find(p => p.id === profile_id);
+                    const hasBackupOverride = profile_id in pendingBackupOverrideRef.current;
+                    const backupOverrideValue = pendingBackupOverrideRef.current[profile_id];
+                    delete pendingBackupOverrideRef.current[profile_id];
+
                     if (latestProfile && latestProfile.status === ServerStatus.Restarting) {
+                        const shouldAutoBackup = hasBackupOverride
+                            ? Boolean(backupOverrideValue)
+                            : Boolean(latestProfile.config.autoBackupOnStopRestart);
+                        if (shouldAutoBackup && latestProfile.path) {
+                            await performProfileBackup(latestProfile, 'pre-restart');
+                        }
                         onStart(profile_id); 
                     } else if (latestProfile && (latestProfile.status === ServerStatus.Running || latestProfile.status === ServerStatus.Starting) && latestProfile.config.autoCrashRecovery) {
                         // CRASH DETECTED
@@ -2425,6 +2601,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                         }
                     } else {
                         scheduledRestartWipeProfilesRef.current.delete(profile_id);
+                        const shouldAutoBackup = hasBackupOverride
+                            ? Boolean(backupOverrideValue)
+                            : Boolean(latestProfile?.status === ServerStatus.Stopping && latestProfile?.config.autoBackupOnStopRestart);
+                        if (shouldAutoBackup && latestProfile?.path) {
+                            await performProfileBackup(latestProfile, 'post-shutdown');
+                        }
                         if (stoppedProfile) {
                             notificationService.sendNotification('Server Stopped', `Server "${stoppedProfile.profileName}" has stopped.`);
                             discordService.sendDiscordNotification(stoppedProfile, 'Server Stopped', 'The server has stopped.', discordService.DiscordColors.RED);
@@ -2574,18 +2756,24 @@ const Dashboard: React.FC<DashboardProps> = ({
             clearTimeout(startupTimerRef.current);
         }
     };
-}, [onStart, onStop, onRestart, onUpdate, updateProfile, setNotifications, executeServerStart, sendDiscordStatusResponse, handleWipeWildDinosOnStartup, performTelemetrySync]);
+}, [onStart, onStop, onRestart, onUpdate, updateProfile, setNotifications, executeServerStart, sendDiscordStatusResponse, handleWipeWildDinosOnStartup, performTelemetrySync, performProfileBackup]);
   
   useEffect(() => {
     setActiveTab('config');
     setManagerLog([]);
     setServerLog([]);
-    if (activeProfile?.path) {
-        handleListBackups();
-    } else {
-        setBackups([]); 
+  }, [activeProfileId]);
+
+  useEffect(() => {
+    if (!activeProfile?.path) {
+        setBackups([]);
+        return;
     }
-  }, [activeProfileId, handleListBackups]);
+    const timer = window.setTimeout(() => {
+        handleListBackups();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [activeProfileId, activeProfile?.path, handleListBackups]);
 
   const handleUpdateProfileName = (id: string, newName: string) => {
     setProfiles(prevProfiles => {
@@ -2923,12 +3111,14 @@ const Dashboard: React.FC<DashboardProps> = ({
               `UpdateAllowedCheatersInterval=600.0`,
               `UseExclusiveList=False`,
               `StartTimeHour=-1`,
+              `DayTimeSpeedScale=${(config.dayTimeSpeedScale ?? 1.0).toFixed(1)}`,
               `DinoCharacterFoodDrainMultiplier=${(config.dinoCharacterFoodDrainMultiplier ?? 1.0).toFixed(1)}`,
               `DinoCharacterHealthRecoveryMultiplier=${(config.dinoCharacterHealthRecoveryMultiplier ?? 1.0).toFixed(1)}`,
               `DinoCharacterStaminaDrainMultiplier=${(config.dinoCharacterStaminaDrainMultiplier ?? 1.0).toFixed(1)}`,
               `DinoCountMultiplier=${(config.dinoCountMultiplier ?? 1.0).toFixed(1)}`,
               `DinoDamageMultiplier=${(config.dinoDamageMultiplier ?? 1.0).toFixed(1)}`,
               `DinoResistanceMultiplier=${(config.dinoResistanceMultiplier ?? 1.0).toFixed(1)}`,
+              `ForceAllowCaveFlyers=${(config.bForceAllowCaveFlyers ?? true) ? 'True' : 'False'}`,
               `HarvestAmountMultiplier=${(config.harvestAmountMultiplier ?? 1.0).toFixed(1)}`,
               `HarvestHealthMultiplier=${(config.harvestHealthMultiplier ?? 1.0).toFixed(1)}`,
               `NightTimeSpeedScale=${(config.nightTimeSpeedScale ?? 1.0).toFixed(1)}`,
@@ -2942,6 +3132,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               `ResourcesRespawnPeriodMultiplier=${(config.resourcesRespawnPeriodMultiplier ?? 1.0).toFixed(1)}`,
               `StructureDamageMultiplier=${(config.structureDamageMultiplier ?? 1.0).toFixed(1)}`,
               `StructureResistanceMultiplier=${(config.structureResistanceMultiplier ?? 1.0).toFixed(1)}`,
+              `TamingSpeedMultiplier=${(config.tamingSpeedMultiplier ?? 1.0).toFixed(1)}`,
               `XPMultiplier=${(config.xpMultiplier ?? 1.0).toFixed(1)}`,
               `NewMaxStructuresInRange=${config.newMaxStructuresInRange ?? 6000}`,
               `ImplantSuicideCD=28800`,
@@ -3700,6 +3891,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         onConfirm={handleInitiateTimedShutdown}
         type="shutdown"
         defaultSaveWorld={activeProfile?.config.saveWorldOnStopRestart ?? true}
+        defaultAutoBackup={activeProfile?.config.autoBackupOnStopRestart ?? false}
       />
       <ShutdownModal
         isOpen={isRestartModalOpen}
@@ -3707,6 +3899,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         onConfirm={handleInitiateTimedRestart}
         type="restart"
         defaultSaveWorld={activeProfile?.config.saveWorldOnStopRestart ?? true}
+        defaultAutoBackup={activeProfile?.config.autoBackupOnStopRestart ?? false}
       />
       <UnsavedChangesModal
         isOpen={isUnsavedChangesModalOpen}
@@ -3815,6 +4008,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             onCancelTimedRestart={handleCancelTimedRestart}
                             activeRestartEndTime={activeRestartEndTime}
                             isActionInProgress={isActionInProgress}
+                            onToggleAutoBackupOnStopRestart={(enabled) => handleConfigChange({ autoBackupOnStopRestart: enabled })}
                         />
                         
                         <div className="border-b border-gray-700">
@@ -3973,6 +4167,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                   )}
                   {activeTab === 'backups' && (
                       <BackupManager
+                        profile={activeProfile}
+                        onConfigChange={handleConfigChange}
                         backups={backups}
                         onCreateBackup={handleCreateBackup}
                         onRestoreBackup={handleRestoreBackup}

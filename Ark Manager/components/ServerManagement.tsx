@@ -294,6 +294,18 @@ const ServerManagement: React.FC<ServerManagementProps> = ({
                                 <span>Note: RCON must be enabled in Server Configuration for the SaveWorld command to be sent.</span>
                             </p>
                         )}
+                        <div className="pt-2">
+                            <CheckboxInput 
+                                label="Auto-backup server on stop or restart"
+                                name="autoBackupOnStopRestart"
+                                checked={config.autoBackupOnStopRestart ?? false}
+                                onChange={handleChange}
+                                disabled={isActionInProgress}
+                            />
+                            <p className="text-xs text-gray-400 ml-7 mt-1">
+                                Automatically creates a compressed backup of <code className="text-cyan-300 bg-gray-900/60 px-1 py-0.5 rounded font-mono text-[11px]">ShooterGame/Saved</code> whenever the server stops or restarts.
+                            </p>
+                        </div>
                     </div>
                 </Section>
                 

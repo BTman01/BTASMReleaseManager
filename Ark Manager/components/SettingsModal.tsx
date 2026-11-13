@@ -167,6 +167,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 <div className="space-y-4 text-gray-300">
                     <div>
                         <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/40 text-xs font-bold uppercase tracking-wider">Minor Release</span>
+                            <p className="font-semibold text-gray-200">v2.2.0 (Automated Backups, Custom Backup Paths & INI Fixes)</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">
+                            Major upgrade to server data protection with automated backup scheduling, custom storage locations, and GameUserSettings.ini synchronization fixes.
+                        </p>
+                        <ul className="list-disc list-inside pl-2 text-gray-400 space-y-1.5 mt-1.5">
+                            <li><strong>Automated Scheduled Backups:</strong> Added configurable periodic backups in the Backups tab with intervals from 15 minutes to 24 hours, automatic retention pruning (keep last 3–50 backups or unlimited), and an option to back up only while the server is running with pre-backup RCON <code className="text-cyan-300 font-mono text-xs">SaveWorld</code>.</li>
+                            <li><strong>Auto-Backup on Stop &amp; Restart:</strong> Added an opt-in checkbox (unchecked by default) across Server Controls, Backup Settings, Server Management, and Shutdown/Restart dialogs to automatically back up your world whenever the server stops or restarts.</li>
+                            <li><strong>Custom Backup Storage Location:</strong> Added a per-profile backup destination setting with a native folder browser and one-click reset, allowing manual, automated, and mobile-triggered backups to be saved in any custom folder instead of the default <code className="text-cyan-300 font-mono text-xs">ManagerBackups</code> directory.</li>
+                            <li><strong>GameUserSettings.ini Completeness Fixes:</strong> Restored <code className="text-cyan-300 font-mono text-xs">TamingSpeedMultiplier</code>, <code className="text-cyan-300 font-mono text-xs">DayTimeSpeedScale</code>, and <code className="text-cyan-300 font-mono text-xs">ForceAllowCaveFlyers</code> to the <code className="text-cyan-300 font-mono text-xs">[ServerSettings]</code> output so saved <code className="text-cyan-300 font-mono text-xs">.ini</code> files match all UI settings.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <div className="flex items-center space-x-2">
                             <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs font-bold uppercase tracking-wider">Patch</span>
                             <p className="font-semibold text-gray-200">v2.1.1 (Immediate Mobile Telemetry Sync Fix)</p>
                         </div>

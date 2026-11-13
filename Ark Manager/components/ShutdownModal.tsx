@@ -5,15 +5,17 @@ import { ClockIcon, RestartIcon, StopIcon } from './icons';
 interface TimerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (minutes: number, reason?: string, saveWorld?: boolean) => void;
+  onConfirm: (minutes: number, reason?: string, saveWorld?: boolean, autoBackup?: boolean) => void;
   type: 'shutdown' | 'restart';
   defaultSaveWorld?: boolean;
+  defaultAutoBackup?: boolean;
 }
 
-const TimerModal: React.FC<TimerModalProps> = ({ isOpen, onClose, onConfirm, type, defaultSaveWorld = true }) => {
+const TimerModal: React.FC<TimerModalProps> = ({ isOpen, onClose, onConfirm, type, defaultSaveWorld = true, defaultAutoBackup = false }) => {
   const [minutes, setMinutes] = useState(5);
   const [reason, setReason] = useState('');
   const [saveWorld, setSaveWorld] = useState(defaultSaveWorld);
+  const [autoBackup, setAutoBackup] = useState(defaultAutoBackup);
 
   // Reset inputs when opening
   useEffect(() => {
@@ -21,14 +23,15 @@ const TimerModal: React.FC<TimerModalProps> = ({ isOpen, onClose, onConfirm, typ
       setMinutes(5);
       setReason('');
       setSaveWorld(defaultSaveWorld);
+      setAutoBackup(defaultAutoBackup);
     }
-  }, [isOpen, defaultSaveWorld]);
+  }, [isOpen, defaultSaveWorld, defaultAutoBackup]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm(minutes, reason.trim() || undefined, saveWorld);
+    onConfirm(minutes, reason.trim() || undefined, saveWorld, autoBackup);
     onClose();
   };
 
@@ -115,19 +118,36 @@ const TimerModal: React.FC<TimerModalProps> = ({ isOpen, onClose, onConfirm, typ
             )}
           </div>
 
-          <div className="pt-1 pb-1">
-            <label className="flex items-center space-x-2.5 text-sm text-gray-300 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={saveWorld}
-                onChange={(e) => setSaveWorld(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
-              />
-              <span className="font-medium">Save world before {actionLabel.toLowerCase()} (SaveWorld)</span>
-            </label>
-            <p className="text-xs text-gray-400 ml-6 mt-0.5">
-              Flushes world progress, player inventories, and tamed dinos to disk right before stopping.
-            </p>
+          <div className="pt-1 pb-1 space-y-3">
+            <div>
+              <label className="flex items-center space-x-2.5 text-sm text-gray-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={saveWorld}
+                  onChange={(e) => setSaveWorld(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
+                />
+                <span className="font-medium">Save world before {actionLabel.toLowerCase()} (SaveWorld)</span>
+              </label>
+              <p className="text-xs text-gray-400 ml-6 mt-0.5">
+                Flushes world progress, player inventories, and tamed dinos to disk right before stopping.
+              </p>
+            </div>
+
+            <div>
+              <label className="flex items-center space-x-2.5 text-sm text-gray-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoBackup}
+                  onChange={(e) => setAutoBackup(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
+                />
+                <span className="font-medium">Auto-backup server on {actionLabel.toLowerCase()}</span>
+              </label>
+              <p className="text-xs text-gray-400 ml-6 mt-0.5">
+                Creates a compressed backup of ShooterGame/Saved once the server stops{isRestart ? ' before starting back up' : ''}.
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-3 border-t border-gray-700">
