@@ -162,6 +162,12 @@ export interface ServerConfig {
   updateOnRestart: boolean;
   wipeWildDinosOnRestart: boolean; // Wipe wild dinos (DestroyWildDinos/wipewilddinos) as soon as server comes up after automated restart
   saveWorldOnStopRestart: boolean; // Automatically execute SaveWorld via RCON before stopping or restarting server
+  autoBackupEnabled?: boolean; // Enable periodic automatic backups
+  autoBackupIntervalMinutes?: number; // Interval in minutes between automatic backups
+  autoBackupMaxKeep?: number; // Maximum number of backups to retain (0 = unlimited)
+  autoBackupOnlyWhenRunning?: boolean; // Only create scheduled backups while server is running
+  autoBackupOnStopRestart?: boolean; // Automatically create a backup when stopping or restarting server (default false)
+  backupPath?: string; // Custom directory path where backups are saved (empty/undefined = <install_path>/ManagerBackups)
   restartAnnouncementMinutes: number; // Lead time for restart announcements
   autoCrashRecovery: boolean; // Automatically restart server if it crashes
 
